@@ -18,6 +18,9 @@ import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
 import UserManagementPage from './modules/auth/pages/UserManagementPage';
 import ScheduleManagementPage from './modules/engine/pages/ScheduleManagementPage';
 import FormManagementPage from './modules/forms/pages/FormManagementPage';
+import PatientManagementPage from './modules/reception/pages/PatientManagementPage';
+import AppointmentManagementPage from './modules/reception/pages/AppointmentManagementPage';
+import QueueDashboardPage from './modules/reception/pages/QueueDashboardPage';
 import { orgService } from './services/orgService';
 import { authAdminService } from './services/authAdminService';
 import './App.css';
@@ -130,6 +133,21 @@ function AdminLayout() {
       icon: <FileTextOutlined />,
       label: <Link to="/admin/forms">Tùy biến biểu mẫu</Link>,
     },
+    {
+      key: '/admin/patients',
+      icon: <UserOutlined />,
+      label: <Link to="/admin/patients">Hồ sơ Bệnh nhân</Link>,
+    },
+    {
+      key: '/admin/appointments',
+      icon: <CalendarOutlined />,
+      label: <Link to="/admin/appointments">Quản lý Lịch hẹn</Link>,
+    },
+    {
+      key: '/admin/queue',
+      icon: <BuildOutlined />,
+      label: <Link to="/admin/queue">Điều phối & Hàng đợi</Link>,
+    },
   ];
 
   return (
@@ -187,6 +205,9 @@ function AdminLayout() {
             <Route path="medical" element={<MedicalCatalogPage />} />
             <Route path="schedules" element={<ScheduleManagementPage />} />
             <Route path="forms" element={<FormManagementPage />} />
+            <Route path="patients" element={<PatientManagementPage />} />
+            <Route path="appointments" element={<AppointmentManagementPage />} />
+            <Route path="queue" element={<QueueDashboardPage />} />
             <Route path="*" element={<Navigate to="org" replace />} />
           </Routes>
         </Content>
