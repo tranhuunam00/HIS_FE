@@ -17,6 +17,7 @@ import OrgManagementPage from './modules/org/pages/OrgManagementPage';
 import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
 import UserManagementPage from './modules/auth/pages/UserManagementPage';
 import ScheduleManagementPage from './modules/engine/pages/ScheduleManagementPage';
+import FormManagementPage from './modules/forms/pages/FormManagementPage';
 import { orgService } from './services/orgService';
 import { authAdminService } from './services/authAdminService';
 import './App.css';
@@ -127,8 +128,7 @@ function AdminLayout() {
     {
       key: '/admin/forms',
       icon: <FileTextOutlined />,
-      label: 'Tùy biến biểu mẫu',
-      disabled: true,
+      label: <Link to="/admin/forms">Tùy biến biểu mẫu</Link>,
     },
   ];
 
@@ -186,6 +186,7 @@ function AdminLayout() {
             <Route path="users" element={<UserManagementPage />} />
             <Route path="medical" element={<MedicalCatalogPage />} />
             <Route path="schedules" element={<ScheduleManagementPage />} />
+            <Route path="forms" element={<FormManagementPage />} />
             <Route path="*" element={<Navigate to="org" replace />} />
           </Routes>
         </Content>

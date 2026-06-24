@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Tag, Space, Switch, Card, Select, Input, Tooltip, message } from 'antd';
 import { PlusOutlined, EditOutlined, SearchOutlined, DollarOutlined } from '@ant-design/icons';
 import { medicalService } from '../../../services/medicalService';
+import ServiceFormModal from './ServiceFormModal';
+import ServicePriceModal from './ServicePriceModal';
 
 const { Option } = Select;
 
@@ -220,7 +222,7 @@ export default function ServiceListTable() {
               size="small"
             />
           </Tooltip>
-          
+
           <Tooltip title="Điều chỉnh giá">
             <Button
               type="text"
