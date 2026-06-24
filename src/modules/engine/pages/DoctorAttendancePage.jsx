@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Button, Space, Modal, Radio, Input, Form, Tag, Alert, Spin, message, Row, Col } from 'antd';
+import { Card, Typography, Button, Space, Modal, Radio, Input, Form, Tag, Alert, Spin, message, Row, Col, Switch } from 'antd';
 import { ClockCircleOutlined, CheckCircleOutlined, LogoutOutlined, CalendarOutlined, SolutionOutlined } from '@ant-design/icons';
 import { scheduleService } from '../../../services/scheduleService';
 import { attendanceService } from '../../../services/attendanceService';
@@ -135,8 +135,23 @@ export default function DoctorAttendancePage() {
     } catch (err) {
       console.error(err);
       message.error(err.response?.data?.message || 'Điểm danh Check-out thất bại');
+      // Refresh to load latest attendance state (like isAcceptingPatients set to false by backend)
+      await fetchData();
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleToggleAccepting = async (attendanceId, checked) => {
+    try {
+      setLoading(true);
+      await attendanceService.toggleAcceptingPatients(attendanceId, checked);
+      message.success(checked ? 'Đã bật nhận bệnh nhân mới!' : 'Đã ngưng nhận bệnh nhân mới.');
+      await fetchData();
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Không thể cập nhật trạng thái nhận bệnh');
+      setLoading(false);
     }
   };
 
@@ -256,9 +271,16 @@ export default function DoctorAttendancePage() {
                         </Title>
                       </Space>
                       {attendance ? (
-                        <Tag color={attendance.status === 'CHECKED_IN' ? 'success' : 'default'} style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
-                          {attendance.status === 'CHECKED_IN' ? 'ĐANG TRỰC' : 'ĐÃ KẾT THÚC'}
-                        </Tag>
+                        <Space>
+                          {attendance.status === 'CHECKED_IN' && (
+                            <Tag color={attendance.isAcceptingPatients !== false ? 'success' : 'warning'} style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
+                              {attendance.isAcceptingPatients !== false ? 'NHẬN BỆNH' : 'NGƯNG NHẬN BỆNH'}
+                            </Tag>
+                          )}
+                          <Tag color={attendance.status === 'CHECKED_IN' ? 'processing' : 'default'} style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
+                            {attendance.status === 'CHECKED_IN' ? 'ĐANG TRỰC' : 'ĐÃ KẾT THÚC'}
+                          </Tag>
+                        </Space>
                       ) : (
                         <Tag color="warning" style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
                           CHƯA ĐIỂM DANH
@@ -297,6 +319,25 @@ export default function DoctorAttendancePage() {
                               {formatTimeString(attendance.checkInTime)}
                             </Text>
                           </div>
+
+                          {attendance.status === 'CHECKED_IN' && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '12px 0 16px 0', padding: '10px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #edf2f7' }}>
+                              <Space direction="vertical" size={0}>
+                                <Text strong style={{ fontSize: 13, color: '#1e293b' }}>Nhận bệnh nhân mới</Text>
+                                <Text type="secondary" style={{ fontSize: 11, display: 'block', maxWidth: 220 }}>
+                                  {attendance.isAcceptingPatients !== false 
+                                    ? 'Sẵn sàng nhận thêm bệnh nhân vào hàng đợi' 
+                                    : 'Dừng nhận thêm bệnh nhân mới vào phòng khám'}
+                                </Text>
+                              </Space>
+                              <Switch
+                                checked={attendance.isAcceptingPatients !== false}
+                                onChange={(checked) => handleToggleAccepting(attendance.id, checked)}
+                                checkedChildren="Bật"
+                                unCheckedChildren="Tắt"
+                              />
+                            </div>
+                          )}
 
                           {attendance.status === 'CHECKED_OUT' && (
                             <>

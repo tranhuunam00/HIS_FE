@@ -15,4 +15,9 @@ export const attendanceService = {
     const res = await api.get(`/schedules/attendance/today-status/${staffId}?date=${date}`);
     return res.data;
   },
+
+  toggleAcceptingPatients: async (attendanceId, isAcceptingPatients) => {
+    const res = await api.patch(`/schedules/attendance/${attendanceId}/accepting`, { isAcceptingPatients });
+    return res.data;
+  },
 };
