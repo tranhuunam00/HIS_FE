@@ -25,4 +25,9 @@ export const visitService = {
     const res = await api.patch(`/visits/${id}/transfer`, data);
     return res.data;
   },
+
+  confirmResultsWait: async (id) => {
+    const res = await api.patch(`/visits/${id}/confirm-results-wait`);
+    return res.data;
+  },
 };

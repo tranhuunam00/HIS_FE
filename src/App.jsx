@@ -13,12 +13,14 @@ import {
   LogoutOutlined,
   DollarOutlined,
   ShoppingCartOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import LoginPage from './modules/auth/pages/LoginPage';
 import OrgManagementPage from './modules/org/pages/OrgManagementPage';
 import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
 import UserManagementPage from './modules/auth/pages/UserManagementPage';
 import ScheduleManagementPage from './modules/engine/pages/ScheduleManagementPage';
+import DoctorAttendancePage from './modules/engine/pages/DoctorAttendancePage';
 import FormManagementPage from './modules/forms/pages/FormManagementPage';
 import PatientManagementPage from './modules/reception/pages/PatientManagementPage';
 import AppointmentManagementPage from './modules/reception/pages/AppointmentManagementPage';
@@ -52,7 +54,7 @@ function AdminLayout() {
         ]);
         setBranches(list);
         setCurrentUser(user);
-        
+
         if (list.length > 0) {
           const currentStored = localStorage.getItem('activeBranchId');
           const exists = list.some(b => b.id === currentStored);
@@ -111,58 +113,82 @@ function AdminLayout() {
     },
   ];
 
+  const hasRole = (roles) => {
+    return currentUser && roles.includes(currentUser.roleName);
+  };
+
   const menuItems = [
     {
       key: '/admin/org',
       icon: <SettingOutlined />,
       label: <Link to="/admin/org">Cấu hình Tổ chức</Link>,
+      roles: ['ADMIN'],
     },
     {
       key: '/admin/users',
       icon: <UserOutlined />,
       label: <Link to="/admin/users">Tài khoản & Quyền</Link>,
+      roles: ['ADMIN'],
     },
     {
       key: '/admin/medical',
       icon: <MedicineBoxOutlined />,
       label: <Link to="/admin/medical">Danh mục Y tế</Link>,
+      roles: ['ADMIN'],
     },
     {
       key: '/admin/schedules',
       icon: <CalendarOutlined />,
       label: <Link to="/admin/schedules">Lịch làm việc & Ca trực</Link>,
+      roles: ['ADMIN'],
+    },
+    {
+      key: '/admin/schedules/attendance',
+      icon: <ClockCircleOutlined />,
+      label: <Link to="/admin/schedules/attendance">Điểm danh Ca trực</Link>,
+      roles: ['DOCTOR', 'NURSE', 'TECHNICIAN', 'ADMIN'],
     },
     {
       key: '/admin/forms',
       icon: <FileTextOutlined />,
       label: <Link to="/admin/forms">Tùy biến biểu mẫu</Link>,
+      roles: ['ADMIN'],
     },
     {
       key: '/admin/patients',
       icon: <UserOutlined />,
       label: <Link to="/admin/patients">Hồ sơ Bệnh nhân</Link>,
+      roles: ['RECEPTION', 'ADMIN'],
     },
     {
       key: '/admin/appointments',
       icon: <CalendarOutlined />,
       label: <Link to="/admin/appointments">Quản lý Lịch hẹn</Link>,
+      roles: ['RECEPTION', 'ADMIN'],
     },
     {
       key: '/admin/queue',
       icon: <BuildOutlined />,
       label: <Link to="/admin/queue">Điều phối & Hàng đợi</Link>,
+      roles: ['RECEPTION', 'ADMIN'],
     },
     {
       key: '/admin/billing/orders',
       icon: <ShoppingCartOutlined />,
       label: <Link to="/admin/billing/orders">Chỉ định dịch vụ</Link>,
+      roles: ['DOCTOR', 'NURSE', 'ADMIN'],
     },
     {
       key: '/admin/billing/cashier',
       icon: <DollarOutlined />,
       label: <Link to="/admin/billing/cashier">Thu ngân & Thanh toán</Link>,
+      roles: ['RECEPTION', 'ADMIN'],
     },
   ];
+
+  const filteredMenuItems = menuItems.filter(item =>
+    !item.roles || (currentUser && item.roles.includes(currentUser.roleName))
+  );
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -174,7 +200,7 @@ function AdminLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          items={filteredMenuItems}
           size="small"
         />
       </Sider>
@@ -213,19 +239,22 @@ function AdminLayout() {
           </Dropdown>
         </Header>
         <Content style={{ margin: 0, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
-          <Routes>
-            <Route path="org" element={<OrgManagementPage />} />
-            <Route path="users" element={<UserManagementPage />} />
-            <Route path="medical" element={<MedicalCatalogPage />} />
-            <Route path="schedules" element={<ScheduleManagementPage />} />
-            <Route path="forms" element={<FormManagementPage />} />
-            <Route path="patients" element={<PatientManagementPage />} />
-            <Route path="appointments" element={<AppointmentManagementPage />} />
-            <Route path="queue" element={<QueueDashboardPage />} />
-            <Route path="billing/orders" element={<OrderManagementPage />} />
-            <Route path="billing/cashier" element={<CashierPage />} />
-            <Route path="*" element={<Navigate to="org" replace />} />
-          </Routes>
+          {currentUser && (
+            <Routes>
+              <Route path="org" element={hasRole(['ADMIN']) ? <OrgManagementPage /> : <Navigate to={currentUser?.roleName === 'RECEPTION' ? '/admin/queue' : '/admin/schedules/attendance'} replace />} />
+              <Route path="users" element={hasRole(['ADMIN']) ? <UserManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="medical" element={hasRole(['ADMIN']) ? <MedicalCatalogPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="schedules" element={hasRole(['ADMIN']) ? <ScheduleManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="schedules/attendance" element={hasRole(['DOCTOR', 'NURSE', 'TECHNICIAN', 'ADMIN']) ? <DoctorAttendancePage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="forms" element={hasRole(['ADMIN']) ? <FormManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="patients" element={hasRole(['RECEPTION', 'ADMIN']) ? <PatientManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="appointments" element={hasRole(['RECEPTION', 'ADMIN']) ? <AppointmentManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="queue" element={hasRole(['RECEPTION', 'ADMIN']) ? <QueueDashboardPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="billing/orders" element={hasRole(['DOCTOR', 'NURSE', 'ADMIN']) ? <OrderManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="billing/cashier" element={hasRole(['RECEPTION', 'ADMIN']) ? <CashierPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="*" element={<Navigate to="org" replace />} />
+            </Routes>
+          )}
         </Content>
       </Layout>
 
@@ -276,7 +305,7 @@ function AdminLayout() {
             <Form.Item label="Vai trò">
               <Input value={currentUser.roleName || 'N/A'} disabled />
             </Form.Item>
-            
+
             <Divider style={{ margin: '12px 0' }} />
             <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
               Nhập mật khẩu mới bên dưới nếu muốn thay đổi mật khẩu:

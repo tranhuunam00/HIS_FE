@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Row, Col, Card, Table, Button, Form, Select, InputNumber,
-  Input, Space, Tag, Typography, message, Divider, Tooltip, Empty
+  Input, Space, Tag, Typography, message, Divider, Tooltip, Empty, Alert
 } from 'antd';
 import {
   MedicineBoxOutlined, SearchOutlined, CheckCircleOutlined,
@@ -10,6 +10,8 @@ import {
 import { visitService } from '../../../services/visitService';
 import { medicalService } from '../../../services/medicalService';
 import { billingService } from '../../../services/billingService';
+import { authAdminService } from '../../../services/authAdminService';
+import { attendanceService } from '../../../services/attendanceService';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -35,21 +37,40 @@ export default function OrderManagementPage() {
   const [form] = Form.useForm();
   const [addingItem, setAddingItem] = useState(false);
   
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeAttendances, setActiveAttendances] = useState([]);
+  
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
     fetchVisits();
     loadSpecialties();
+    loadUserProfile();
     
     // Listen for branch changes
     const handleBranchChange = () => {
       setSelectedVisit(null);
       setOrder(null);
       fetchVisits();
+      loadUserProfile();
     };
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
-  }, []);
+  }, [activeBranchId]);
+
+  const loadUserProfile = async () => {
+    try {
+      const user = await authAdminService.getCurrentUser();
+      setCurrentUser(user);
+      if (user.staff) {
+        const today = getTodayStr();
+        const status = await attendanceService.getTodayStatus(user.staff.id, today);
+        setActiveAttendances(status.filter(a => a.status === 'CHECKED_IN'));
+      }
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+    }
+  };
 
   const fetchVisits = async () => {
     if (!activeBranchId) return;
@@ -165,6 +186,11 @@ export default function OrderManagementPage() {
   };
 
   const filteredVisits = visits.filter(v => {
+    if (currentUser && ['DOCTOR', 'NURSE'].includes(currentUser.roleName)) {
+      if (activeAttendances.length === 0) return false;
+      const doctorRoomIds = currentUser.staff?.assignments?.map(a => a.roomId).filter(Boolean) || [];
+      if (!doctorRoomIds.includes(v.currentRoomId)) return false;
+    }
     const term = searchVisitText.toLowerCase();
     const patientName = v.patient?.fullName?.toLowerCase() || '';
     const visitCode = v.visitCode?.toLowerCase() || '';
@@ -272,6 +298,15 @@ export default function OrderManagementPage() {
             size="small"
             style={{ height: 'calc(100vh - 120px)', overflowY: 'auto' }}
           >
+            {currentUser && ['DOCTOR', 'NURSE'].includes(currentUser.roleName) && activeAttendances.length === 0 && (
+              <Alert
+                message="Chưa check-in ca trực"
+                description="Bạn cần điểm danh check-in ca trực hôm nay để xem hàng đợi khám."
+                type="warning"
+                showIcon
+                style={{ marginBottom: 12 }}
+              />
+            )}
             <Input
               placeholder="Tìm tên, mã LK, sđt..."
               prefix={<SearchOutlined />}
