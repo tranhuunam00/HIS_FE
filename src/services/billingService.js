@@ -35,4 +35,9 @@ export const billingService = {
     const res = await api.get(`/payments/by-order/${orderId}`);
     return res.data;
   },
+
+  refundOrder: async (orderId, refundData) => {
+    const res = await api.post(`/orders/${orderId}/refund`, refundData);
+    return res.data;
+  },
 };

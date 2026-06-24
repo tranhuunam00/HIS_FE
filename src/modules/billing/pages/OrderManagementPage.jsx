@@ -1,17 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import {
   Row, Col, Card, Table, Button, Form, Select, InputNumber,
-  Input, Space, Tag, Typography, message, Divider, Tooltip, Empty, Alert
+  Input, Space, Tag, Typography, message, Divider, Tooltip, Empty, Alert, Modal, Badge
 } from 'antd';
 import {
   MedicineBoxOutlined, SearchOutlined, CheckCircleOutlined,
-  DeleteOutlined, PlusOutlined, UserOutlined
+  DeleteOutlined, PlusOutlined, UserOutlined, PlayCircleOutlined,
+  ArrowRightOutlined, CompassOutlined, FileTextOutlined, EditOutlined
 } from '@ant-design/icons';
 import { visitService } from '../../../services/visitService';
 import { medicalService } from '../../../services/medicalService';
 import { billingService } from '../../../services/billingService';
 import { authAdminService } from '../../../services/authAdminService';
 import { attendanceService } from '../../../services/attendanceService';
+import { roomService } from '../../../services/roomService';
+import { staffService } from '../../../services/staffService';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -19,6 +22,35 @@ const { Option } = Select;
 const getTodayStr = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+const getVisitStatusTag = (status) => {
+  switch (status) {
+    case 'WAITING_CLINICAL_EXAM':
+      return <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Chờ khám lâm sàng</Tag>;
+    case 'IN_CLINICAL_EXAM':
+      return <Tag color="geekblue" style={{ margin: 0, fontSize: 10 }}>Đang khám lâm sàng</Tag>;
+    case 'CLINICAL_EXAM_DONE':
+      return <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>Đã khám lâm sàng</Tag>;
+    case 'WAITING_SERVICE':
+      return <Tag color="purple" style={{ margin: 0, fontSize: 10 }}>Chờ làm dịch vụ</Tag>;
+    case 'IN_SERVICE':
+      return <Tag color="magenta" style={{ margin: 0, fontSize: 10 }}>Đang làm dịch vụ</Tag>;
+    case 'ALL_SERVICES_DONE':
+      return <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã xong dịch vụ</Tag>;
+    case 'WAITING_RESULTS':
+      return <Tag color="warning" style={{ margin: 0, fontSize: 10 }}>Chờ kết quả</Tag>;
+    case 'WAITING_CONCLUSION':
+      return <Tag color="orange" style={{ margin: 0, fontSize: 10 }}>Chờ kết luận</Tag>;
+    case 'IN_CONCLUSION':
+      return <Tag color="volcano" style={{ margin: 0, fontSize: 10 }}>Đang kết luận</Tag>;
+    case 'COMPLETED':
+      return <Tag color="success" style={{ margin: 0, fontSize: 10 }}>Hoàn thành</Tag>;
+    case 'CANCELLED':
+      return <Tag color="error" style={{ margin: 0, fontSize: 10 }}>Đã hủy</Tag>;
+    default:
+      return <Tag style={{ margin: 0, fontSize: 10 }}>{status}</Tag>;
+  }
 };
 
 export default function OrderManagementPage() {
@@ -40,12 +72,23 @@ export default function OrderManagementPage() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeAttendances, setActiveAttendances] = useState([]);
   
+  const [rooms, setRooms] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [transferVisible, setTransferVisible] = useState(false);
+  const [formTransfer] = Form.useForm();
+  const [savingTransfer, setSavingTransfer] = useState(false);
+
+  const [resultModalVisible, setResultModalVisible] = useState(false);
+  const [selectedOrderItem, setSelectedOrderItem] = useState(null);
+  const [resultNotes, setResultNotes] = useState('');
+  
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
     fetchVisits();
     loadSpecialties();
     loadUserProfile();
+    loadMetadata();
     
     // Listen for branch changes
     const handleBranchChange = () => {
@@ -53,10 +96,25 @@ export default function OrderManagementPage() {
       setOrder(null);
       fetchVisits();
       loadUserProfile();
+      loadMetadata();
     };
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, [activeBranchId]);
+
+  const loadMetadata = async () => {
+    if (!activeBranchId) return;
+    try {
+      const [roomList, staffList] = await Promise.all([
+        roomService.getRooms(activeBranchId),
+        staffService.getStaffList({ branchId: activeBranchId, title: 'DOCTOR' }),
+      ]);
+      setRooms(roomList.filter((r) => r.isActive));
+      setDoctors(staffList.filter((s) => s.isActive));
+    } catch (err) {
+      console.error('Error loading metadata:', err);
+    }
+  };
 
   const loadUserProfile = async () => {
     try {
@@ -185,6 +243,114 @@ export default function OrderManagementPage() {
     }
   };
 
+  const handleAcceptPatient = async () => {
+    if (!selectedVisit) return;
+    try {
+      const updatedVisit = await visitService.acceptPatient(selectedVisit.id);
+      setSelectedVisit(updatedVisit);
+      message.success('Tiếp nhận bệnh nhân thành công!');
+      fetchVisits();
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Không thể tiếp nhận bệnh nhân');
+    }
+  };
+
+  const handleCompletePatient = async () => {
+    if (!selectedVisit) return;
+    try {
+      const updatedVisit = await visitService.completePatient(selectedVisit.id);
+      setSelectedVisit(updatedVisit);
+      message.success('Hoàn thành lượt khám thành công!');
+      fetchVisits();
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Không thể hoàn thành lượt khám');
+    }
+  };
+
+  const handleOpenTransfer = (visit) => {
+    formTransfer.resetFields();
+    formTransfer.setFieldsValue({
+      roomId: visit.currentRoomId || undefined,
+      doctorId: visit.currentDoctorId || undefined,
+      status: visit.status === 'ADMITTED' ? 'WAITING' : (visit.status === 'WAITING' ? 'WAITING' : visit.status),
+    });
+    setTransferVisible(true);
+  };
+
+  const handleSaveTransfer = async () => {
+    if (!selectedVisit) return;
+    try {
+      setSavingTransfer(true);
+      const values = await formTransfer.validateFields();
+      
+      const targetRoom = rooms.find(r => r.id === values.roomId);
+      let status = values.status;
+      
+      if (targetRoom && targetRoom.type === 'CLINIC') {
+        if (values.status === 'WAITING' || !values.status) {
+          status = 'WAITING_CLINICAL_EXAM';
+        }
+      } else if (targetRoom && targetRoom.type !== 'CLINIC') {
+        if (values.status === 'WAITING' || !values.status) {
+          status = 'WAITING_SERVICE';
+        }
+      }
+
+      const updatedVisit = await visitService.transferRoom(selectedVisit.id, {
+        roomId: values.roomId,
+        doctorId: values.doctorId,
+        status: status
+      });
+
+      message.success('Điều phối chuyển phòng khám thành công!');
+      setSelectedVisit(updatedVisit);
+      setTransferVisible(false);
+      fetchVisits();
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Chuyển phòng thất bại. Vui lòng kiểm tra lịch trực/điểm danh của bác sĩ.');
+    } finally {
+      setSavingTransfer(false);
+    }
+  };
+
+  const handleSaveResult = async (itemId, newStatus, newResultStatus, newResultNotes) => {
+    if (!order) return;
+    try {
+      const updatedOrder = await billingService.updateOrderItem(order.id, itemId, {
+        status: newStatus,
+        resultStatus: newResultStatus,
+        resultNotes: newResultNotes,
+      });
+      setOrder(updatedOrder);
+      message.success('Cập nhật kết quả dịch vụ thành công!');
+      fetchVisits();
+      if (selectedVisit) {
+        const updatedVisit = await visitService.getVisitById(selectedVisit.id);
+        setSelectedVisit(updatedVisit);
+      }
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Không thể cập nhật kết quả');
+    }
+  };
+
+  const handleOpenResultModal = (item) => {
+    setSelectedOrderItem(item);
+    setResultNotes(item.resultNotes || '');
+    setResultModalVisible(true);
+  };
+
+  const handleSaveResultFromModal = async () => {
+    if (!selectedOrderItem) return;
+    await handleSaveResult(selectedOrderItem.id, 'COMPLETED', 'COMPLETED', resultNotes);
+    setResultModalVisible(false);
+    setSelectedOrderItem(null);
+    setResultNotes('');
+  };
+
   const filteredVisits = visits.filter(v => {
     if (currentUser && ['DOCTOR', 'NURSE'].includes(currentUser.roleName)) {
       if (activeAttendances.length === 0) return false;
@@ -209,6 +375,11 @@ export default function OrderManagementPage() {
           <div>
             <Tag color="cyan" style={{ fontSize: 10 }}>{record.service?.code}</Tag>
             <Tag color="blue" style={{ fontSize: 10 }}>{record.service?.category}</Tag>
+            {record.resultNotes && (
+              <div style={{ marginTop: 4, padding: '4px 8px', background: '#f0fdf4', borderRadius: 4, borderLeft: '3px solid #10b981', fontSize: 11 }}>
+                <strong>Kết quả:</strong> {record.resultNotes}
+              </div>
+            )}
           </div>
         </div>
       )
@@ -218,7 +389,7 @@ export default function OrderManagementPage() {
       dataIndex: 'price',
       key: 'price',
       align: 'right',
-      width: 130,
+      width: 120,
       render: price => <Text strong>{Number(price).toLocaleString('vi-VN')}đ</Text>
     },
     {
@@ -226,13 +397,13 @@ export default function OrderManagementPage() {
       dataIndex: 'quantity',
       key: 'quantity',
       align: 'center',
-      width: 60,
+      width: 50,
     },
     {
       title: 'Thành tiền',
       key: 'total',
       align: 'right',
-      width: 140,
+      width: 120,
       render: (_, record) => (
         <Text type="success" strong>
           {(Number(record.price) * record.quantity).toLocaleString('vi-VN')}đ
@@ -241,47 +412,101 @@ export default function OrderManagementPage() {
     },
     {
       title: 'Trạng thái',
-      dataIndex: 'status',
       key: 'status',
       align: 'center',
-      width: 110,
-      render: status => {
-        if (status === 'COMPLETED') return <Tag color="green">Đã thực hiện</Tag>;
-        if (status === 'CANCELLED') return <Tag color="red">Đã hủy</Tag>;
-        return <Tag color="orange">Chờ thực hiện</Tag>;
+      width: 140,
+      render: (_, record) => {
+        return (
+          <Space direction="vertical" size={2} style={{ alignItems: 'center' }}>
+            {record.status === 'COMPLETED' ? (
+              <Tag color="green">Đã thực hiện</Tag>
+            ) : record.status === 'CANCELLED' ? (
+              <Tag color="red">Đã hủy</Tag>
+            ) : (
+              <Tag color="orange">Chờ thực hiện</Tag>
+            )}
+            {record.status === 'COMPLETED' && (
+              record.resultStatus === 'PENDING' ? (
+                <Tag color="warning" style={{ fontSize: 10 }}>Trả sau (Chờ KQ)</Tag>
+              ) : record.resultStatus === 'COMPLETED' ? (
+                <Tag color="blue" style={{ fontSize: 10 }}>Đã trả KQ</Tag>
+              ) : null
+            )}
+          </Space>
+        );
       }
     },
     {
       title: 'Thao tác',
       key: 'actions',
       align: 'center',
-      width: 120,
+      width: 150,
       render: (_, record) => {
         if (record.status === 'PENDING') {
           return (
             <Space>
-              <Tooltip title="Đánh dấu hoàn thành dịch vụ">
+              <Tooltip title="Trả sau (Kết quả bổ sung sau)">
+                <Button
+                  type="text"
+                  icon={<FileTextOutlined style={{ color: '#d4b106' }} />}
+                  onClick={() => handleSaveResult(record.id, 'COMPLETED', 'PENDING', '')}
+                />
+              </Tooltip>
+              <Tooltip title="Trả luôn (Nhập & trả KQ ngay)">
                 <Button
                   type="text"
                   icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-                  onClick={() => handleUpdateItemStatus(record.id, 'COMPLETED')}
+                  onClick={() => handleOpenResultModal(record)}
                 />
               </Tooltip>
-              <Tooltip title="Xóa dịch vụ chưa thực hiện">
-                <Button
-                  type="text"
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => handleDeleteItem(record.id)}
-                />
-              </Tooltip>
+              {order?.status !== 'PAID' && (
+                <Tooltip title="Xóa dịch vụ chưa thực hiện">
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleDeleteItem(record.id)}
+                  />
+                </Tooltip>
+              )}
             </Space>
           );
+        }
+        if (record.status === 'COMPLETED') {
+          if (record.resultStatus === 'PENDING') {
+            return (
+              <Tooltip title="Viết phiếu kết quả">
+                <Button
+                  type="primary"
+                  size="small"
+                  ghost
+                  icon={<EditOutlined />}
+                  onClick={() => handleOpenResultModal(record)}
+                >
+                  Viết KQ
+                </Button>
+              </Tooltip>
+            );
+          }
+          if (record.resultStatus === 'COMPLETED') {
+            return (
+              <Tooltip title="Sửa kết quả">
+                <Button
+                  type="text"
+                  icon={<EditOutlined style={{ color: '#1890ff' }} />}
+                  onClick={() => handleOpenResultModal(record)}
+                />
+              </Tooltip>
+            );
+          }
         }
         return <Text type="secondary" style={{ fontSize: 12 }}>-</Text>;
       }
     }
   ];
+
+  const canAccept = selectedVisit && ['WAITING_CLINICAL_EXAM', 'WAITING_CONCLUSION', 'WAITING_SERVICE'].includes(selectedVisit.status);
+  const canComplete = selectedVisit && ['IN_CLINICAL_EXAM', 'IN_CONCLUSION'].includes(selectedVisit.status);
 
   return (
     <div style={{ padding: 16 }}>
@@ -342,9 +567,14 @@ export default function OrderManagementPage() {
                         <Text strong style={{ fontSize: 13, textTransform: 'uppercase' }}>{v.patient?.fullName}</Text>
                         <Tag color="cyan" style={{ margin: 0, fontSize: 10 }}>STT: {v.queueNumber}</Tag>
                       </div>
-                      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
-                        <div>Mã LK: {v.visitCode}</div>
-                        <div>Lý do: {v.reason || 'Khám tổng quát'}</div>
+                      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                        <div>
+                          <div>Mã LK: {v.visitCode}</div>
+                          <div>Lý do: {v.reason || 'Khám tổng quát'}</div>
+                        </div>
+                        <div style={{ marginLeft: 4 }}>
+                          {getVisitStatusTag(v.status)}
+                        </div>
                       </div>
                     </div>
                   );
@@ -376,12 +606,47 @@ export default function OrderManagementPage() {
               style={{ minHeight: 'calc(100vh - 120px)' }}
             >
               {/* Patient mini summary card */}
-              <div style={{ background: '#f5f5f5', padding: '10px 14px', borderRadius: 6, marginBottom: 16, fontSize: 13 }}>
-                <Row gutter={16}>
-                  <Col span={6}><strong>Mã LK:</strong> {selectedVisit.visitCode}</Col>
-                  <Col span={6}><strong>Giới tính:</strong> {selectedVisit.patient?.gender === 'MALE' ? 'Nam' : 'Nữ'}</Col>
-                  <Col span={6}><strong>Ngày sinh:</strong> {selectedVisit.patient?.dob}</Col>
-                  <Col span={6}><strong>SĐT:</strong> {selectedVisit.patient?.phone}</Col>
+              <div style={{ background: '#f5f5f5', padding: '12px 16px', borderRadius: 6, marginBottom: 16, fontSize: 13 }}>
+                <Row gutter={16} align="middle">
+                  <Col span={17}>
+                    <Row gutter={[16, 8]}>
+                      <Col span={8}><strong>Mã LK:</strong> {selectedVisit.visitCode}</Col>
+                      <Col span={8}><strong>Giới tính:</strong> {selectedVisit.patient?.gender === 'MALE' ? 'Nam' : 'Nữ'}</Col>
+                      <Col span={8}><strong>Ngày sinh:</strong> {selectedVisit.patient?.dob}</Col>
+                      <Col span={8}><strong>SĐT:</strong> {selectedVisit.patient?.phone}</Col>
+                      <Col span={16}><strong>Trạng thái:</strong> {getVisitStatusTag(selectedVisit.status)}</Col>
+                    </Row>
+                  </Col>
+                  <Col span={7} style={{ display: 'flex', flexDirection: 'column', gap: 6, borderLeft: '1px solid #d9d9d9', paddingLeft: 16 }}>
+                    {canAccept && (
+                      <Button
+                        type="primary"
+                        icon={<PlayCircleOutlined />}
+                        onClick={handleAcceptPatient}
+                        style={{ width: '100%' }}
+                      >
+                        Tiếp nhận
+                      </Button>
+                    )}
+                    {canComplete && (
+                      <Button
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleCompletePatient}
+                        style={{ width: '100%', backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                      >
+                        Hoàn thành
+                      </Button>
+                    )}
+                    <Button
+                      type="default"
+                      icon={<CompassOutlined />}
+                      onClick={() => handleOpenTransfer(selectedVisit)}
+                      style={{ width: '100%' }}
+                    >
+                      Chuyển phòng
+                    </Button>
+                  </Col>
                 </Row>
               </div>
 
@@ -486,6 +751,102 @@ export default function OrderManagementPage() {
           )}
         </Col>
       </Row>
+
+      {/* Transfer Room Modal */}
+      <Modal
+        title={
+          <Title level={4} style={{ margin: 0, paddingBottom: 8, borderBottom: '1px solid #f0f0f0', fontSize: 16 }}>
+            Điều phối Phân phòng & Bác sĩ thực hiện
+          </Title>
+        }
+        open={transferVisible}
+        onCancel={() => setTransferVisible(false)}
+        onOk={handleSaveTransfer}
+        confirmLoading={savingTransfer}
+        okText="Xác nhận điều phối"
+        cancelText="Đóng"
+        width={450}
+      >
+        {selectedVisit && (
+          <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', borderLeft: '3px solid #52c41a' }}>
+            Bệnh nhân: <strong>{selectedVisit.patient?.fullName?.toUpperCase()}</strong> (Mã LK: {selectedVisit.visitCode})
+          </div>
+        )}
+        <Form form={formTransfer} layout="vertical" size="small">
+          <Form.Item
+            name="roomId"
+            label="Phòng khám / Bộ phận cận lâm sàng đích:"
+            rules={[{ required: true, message: 'Vui lòng chọn phòng điều phối đến' }]}
+          >
+            <Select placeholder="Chọn phòng khám">
+              {rooms.map((r) => (
+                <Option key={r.id} value={r.id}>{r.name} ({r.type === 'CLINIC' ? 'Phòng khám' : 'Cận lâm sàng'})</Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="doctorId"
+            label="Bác sĩ nhận điều phối:"
+          >
+            <Select placeholder="Bác sĩ nhận bệnh (Không bắt buộc)" allowClear>
+              {doctors.map((d) => (
+                <Option key={d.id} value={d.id}>{d.fullName}</Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="status"
+            label="Trạng thái hàng đợi đích:"
+            initialValue="WAITING"
+          >
+            <Select placeholder="Trạng thái hàng đợi">
+              <Option value="WAITING">Chờ khám / Chờ dịch vụ (Mặc định)</Option>
+              <Option value="WAITING_CLINICAL_EXAM">Chờ khám lâm sàng</Option>
+              <Option value="WAITING_SERVICE">Chờ làm dịch vụ</Option>
+              <Option value="WAITING_CONCLUSION">Chờ kết luận</Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Result Entry Modal */}
+      <Modal
+        title={
+          <Title level={4} style={{ margin: 0, paddingBottom: 8, borderBottom: '1px solid #f0f0f0', fontSize: 16 }}>
+            Nhập kết quả dịch vụ cận lâm sàng
+          </Title>
+        }
+        open={resultModalVisible}
+        onCancel={() => {
+          setResultModalVisible(false);
+          setSelectedOrderItem(null);
+          setResultNotes('');
+        }}
+        onOk={handleSaveResultFromModal}
+        okText="Lưu kết quả"
+        cancelText="Đóng"
+        width={500}
+      >
+        {selectedOrderItem && (
+          <div style={{ background: '#f0fdf4', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', borderLeft: '3px solid #10b981' }}>
+            <div>Dịch vụ: <strong>{selectedOrderItem.service?.name}</strong></div>
+            <div style={{ fontSize: 12, color: '#4b5563', marginTop: 4 }}>
+              Bệnh nhân: {selectedVisit?.patient?.fullName} (STT: {selectedVisit?.queueNumber})
+            </div>
+          </div>
+        )}
+        <div style={{ marginBottom: 12 }}>
+          <Text strong>Nội dung/Kết luận phiếu kết quả:</Text>
+        </div>
+        <Input.TextArea
+          rows={5}
+          value={resultNotes}
+          onChange={(e) => setResultNotes(e.target.value)}
+          placeholder="Nhập ghi chú kết quả, kết luận hình ảnh, kết quả xét nghiệm..."
+        />
+      </Modal>
     </div>
   );
 }

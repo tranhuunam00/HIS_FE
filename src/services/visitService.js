@@ -30,4 +30,14 @@ export const visitService = {
     const res = await api.patch(`/visits/${id}/confirm-results-wait`);
     return res.data;
   },
+
+  acceptPatient: async (id) => {
+    const res = await api.patch(`/visits/${id}/accept`);
+    return res.data;
+  },
+
+  completePatient: async (id) => {
+    const res = await api.patch(`/visits/${id}/complete`);
+    return res.data;
+  },
 };

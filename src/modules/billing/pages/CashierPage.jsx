@@ -22,29 +22,42 @@ export default function CashierPage() {
   
   const [showQRModal, setShowQRModal] = useState(false);
   
+  // Status filter for cashier list
+  const [statusFilter, setStatusFilter] = useState('PENDING'); // PENDING | PAID
+  const [refundModalVisible, setRefundModalVisible] = useState(false);
+  const [selectedItemsForRefund, setSelectedItemsForRefund] = useState([]);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
+  const [refundLoading, setRefundLoading] = useState(false);
+  
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
-    fetchPendingOrders();
+    fetchOrders(statusFilter);
 
     // Listen for branch changes
     const handleBranchChange = () => {
       setSelectedOrder(null);
-      fetchPendingOrders();
+      fetchOrders(statusFilter);
     };
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
-  }, []);
+  }, [statusFilter]);
 
-  const fetchPendingOrders = async () => {
+  const fetchOrders = async (status) => {
     try {
       setLoadingOrders(true);
-      // Fetch all orders (we will filter PENDING orders for cashier)
-      const data = await billingService.getOrders({ status: 'PENDING' });
-      setOrders(data);
+      if (status === 'PENDING') {
+        const data = await billingService.getOrders({ status: 'PENDING' });
+        setOrders(data);
+      } else {
+        // Fetch all orders, then filter to show PAID and CANCELLED
+        const data = await billingService.getOrders();
+        setOrders(data.filter(o => o.status === 'PAID' || o.status === 'CANCELLED'));
+      }
     } catch (err) {
       console.error(err);
-      message.error('Không thể tải danh sách hóa đơn chờ thanh toán');
+      message.error('Không thể tải danh sách hóa đơn');
     } finally {
       setLoadingOrders(false);
     }
@@ -70,12 +83,49 @@ export default function CashierPage() {
       handlePrintInvoice(selectedOrder, [res]);
       
       setSelectedOrder(null);
-      fetchPendingOrders();
+      fetchOrders(statusFilter);
     } catch (err) {
       console.error(err);
       message.error(err.response?.data?.message || 'Thanh toán thất bại');
     } finally {
       setPaying(false);
+    }
+  };
+
+  const handleRefundSubmit = async () => {
+    if (selectedItemsForRefund.length === 0) {
+      message.warning('Vui lòng chọn ít nhất một dịch vụ để hoàn tiền');
+      return;
+    }
+    if (!refundReason.trim()) {
+      message.warning('Vui lòng nhập lý do hoàn trả');
+      return;
+    }
+
+    try {
+      setRefundLoading(true);
+      await billingService.refundOrder(selectedOrder.id, {
+        itemIds: selectedItemsForRefund,
+        reason: refundReason,
+        paymentMethod: refundPaymentMethod,
+      });
+
+      message.success('Hoàn trả tiền dịch vụ thành công!');
+      setRefundModalVisible(false);
+      
+      // Refresh list
+      const updatedOrders = await billingService.getOrders();
+      const filtered = updatedOrders.filter(o => o.status === 'PAID' || o.status === 'CANCELLED');
+      setOrders(filtered);
+      
+      // Update selected order view
+      const freshOrder = filtered.find(o => o.id === selectedOrder.id);
+      setSelectedOrder(freshOrder || null);
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Hoàn tiền thất bại');
+    } finally {
+      setRefundLoading(false);
     }
   };
 
@@ -216,7 +266,18 @@ export default function CashierPage() {
       key: 'total',
       align: 'right',
       render: (_, r) => <Text type="success" strong>{(Number(r.price) * r.quantity).toLocaleString('vi-VN')}đ</Text>
-    }
+    },
+    ...(statusFilter === 'PAID' ? [{
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      align: 'center',
+      render: (status) => {
+        if (status === 'COMPLETED') return <Tag color="green">Đã thực hiện</Tag>;
+        if (status === 'CANCELLED') return <Tag color="red">Đã hủy</Tag>;
+        return <Tag color="orange">Chờ thực hiện</Tag>;
+      }
+    }] : [])
   ];
 
   // VietQR generation variables fallback matching backend configurations
@@ -231,18 +292,36 @@ export default function CashierPage() {
   return (
     <div style={{ padding: 16 }}>
       <Row gutter={16}>
-        {/* Left column: list of pending bills */}
+        {/* Left column: list of pending & paid bills */}
         <Col span={8}>
           <Card
             title={
               <span style={{ fontSize: 14, fontWeight: 600 }}>
                 <DollarOutlined style={{ marginRight: 8, color: '#52c41a' }} />
-                Danh sách chờ thanh toán
+                Danh sách hóa đơn
               </span>
             }
             size="small"
             style={{ height: 'calc(100vh - 120px)', overflowY: 'auto' }}
           >
+            <Radio.Group
+              value={statusFilter}
+              onChange={e => {
+                setStatusFilter(e.target.value);
+                setSelectedOrder(null);
+              }}
+              style={{ width: '100%', marginBottom: 12 }}
+              buttonStyle="solid"
+              size="small"
+            >
+              <Radio.Button value="PENDING" style={{ width: '50%', textAlign: 'center' }}>
+                Chờ thanh toán
+              </Radio.Button>
+              <Radio.Button value="PAID" style={{ width: '50%', textAlign: 'center' }}>
+                Lịch sử đã thu
+              </Radio.Button>
+            </Radio.Group>
+
             <Input
               placeholder="Tìm bệnh nhân, mã HĐ, sđt..."
               prefix={<SearchOutlined />}
@@ -256,7 +335,7 @@ export default function CashierPage() {
             {loadingOrders ? (
               <div style={{ textAlign: 'center', padding: '24px 0' }}>Đang tải...</div>
             ) : filteredOrders.length === 0 ? (
-              <Empty description="Không có hóa đơn chờ thanh toán" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              <Empty description={statusFilter === 'PENDING' ? 'Không có hóa đơn chờ thanh toán' : 'Không có hóa đơn đã thanh toán'} image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {filteredOrders.map(o => {
@@ -276,7 +355,9 @@ export default function CashierPage() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <Text strong style={{ fontSize: 13, textTransform: 'uppercase' }}>{o.patient?.fullName}</Text>
-                        <Badge count="Chờ" style={{ backgroundColor: '#fa8c16' }} />
+                        {o.status === 'PENDING' && <Badge count="Chờ" style={{ backgroundColor: '#fa8c16' }} />}
+                        {o.status === 'PAID' && <Badge count="Đã thu" style={{ backgroundColor: '#52c41a' }} />}
+                        {o.status === 'CANCELLED' && <Badge count="Đã hủy" style={{ backgroundColor: '#ff4d4f' }} />}
                       </div>
                       <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
                         <div>Mã HĐ: {o.orderCode}</div>
@@ -299,10 +380,15 @@ export default function CashierPage() {
           {selectedOrder ? (
             <Card
               title={
-                <span style={{ fontSize: 14, fontWeight: 600 }}>
-                  <ShoppingCartOutlined style={{ marginRight: 8, color: '#52c41a' }} />
-                  Chi tiết hóa đơn y tế: {selectedOrder.orderCode}
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>
+                    <ShoppingCartOutlined style={{ marginRight: 8, color: '#52c41a' }} />
+                    Chi tiết hóa đơn y tế: {selectedOrder.orderCode}
+                  </span>
+                  <Tag color={selectedOrder.status === 'PAID' ? 'green' : (selectedOrder.status === 'CANCELLED' ? 'red' : 'orange')} style={{ fontSize: 11, margin: 0 }}>
+                    {selectedOrder.status === 'PAID' ? 'ĐÃ THANH TOÁN' : (selectedOrder.status === 'CANCELLED' ? 'ĐÃ HỦY / HOÀN TIỀN' : 'CHƯA THANH TOÁN')}
+                  </Tag>
+                </div>
               }
               size="small"
               style={{ minHeight: 'calc(100vh - 120px)' }}
@@ -331,78 +417,210 @@ export default function CashierPage() {
               />
 
               <div style={{ textAlign: 'right', marginTop: 16, background: '#fafafa', padding: '10px 14px', borderRadius: 6 }}>
-                <Text style={{ fontSize: 14, marginRight: 8 }}>Tổng tiền thanh toán:</Text>
+                <Text style={{ fontSize: 14, marginRight: 8 }}>Tổng tiền hóa đơn:</Text>
                 <Text type="danger" strong style={{ fontSize: 20 }}>
                   {Number(selectedOrder.totalAmount).toLocaleString('vi-VN')} đ
                 </Text>
               </div>
 
-              {/* Payment Method Option Selector */}
-              <div style={{ marginTop: 20 }}>
-                <Title level={5} style={{ margin: '8px 0', fontSize: 13 }}>Phương thức thanh toán</Title>
-                <Radio.Group
-                  value={paymentMethod}
-                  onChange={e => setPaymentMethod(e.target.value)}
-                  buttonStyle="solid"
-                  size="middle"
-                >
-                  <Radio.Button value="CASH">
-                    <DollarOutlined style={{ marginRight: 6 }} />
-                    Tiền mặt
-                  </Radio.Button>
-                  <Radio.Button value="TRANSFER">
-                    <QrcodeOutlined style={{ marginRight: 6 }} />
-                    Chuyển khoản (VietQR)
-                  </Radio.Button>
-                  <Radio.Button value="CARD">
-                    <CreditCardOutlined style={{ marginRight: 6 }} />
-                    Thẻ ngân hàng
-                  </Radio.Button>
-                </Radio.Group>
-              </div>
-
-              {/* QR display block for Transfer method */}
-              {paymentMethod === 'TRANSFER' && (
-                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', background: '#e6f7ff', border: '1px solid #91d5ff', padding: 12, borderRadius: 6, gap: 16 }}>
-                  <img src={qrImageUrl} alt="VietQR" style={{ width: 130, height: 130, background: '#fff', padding: 4, border: '1px solid #d9d9d9', borderRadius: 4 }} />
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: '#1890ff' }}>Thanh toán chuyển khoản nhanh qua VietQR</div>
-                    <div style={{ fontSize: 12, color: '#595959', marginTop: 4 }}>
-                      <div>Ngân hàng: <strong>BIDV (Mã ngân hàng: 970418)</strong></div>
-                      <div>Số tài khoản: <strong>2152486504</strong></div>
-                      <div>Chủ tài khoản: <strong>TRAN HUU NAM</strong></div>
-                      <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{Number(selectedOrder.totalAmount).toLocaleString('vi-VN')}đ</strong></div>
-                      <div>Nội dung chuyển khoản: <strong>Thanh toan vien phi ${selectedOrder.orderCode}</strong></div>
-                    </div>
+              {statusFilter === 'PENDING' && (
+                <>
+                  {/* Payment Method Option Selector */}
+                  <div style={{ marginTop: 20 }}>
+                    <Title level={5} style={{ margin: '8px 0', fontSize: 13 }}>Phương thức thanh toán</Title>
+                    <Radio.Group
+                      value={paymentMethod}
+                      onChange={e => setPaymentMethod(e.target.value)}
+                      buttonStyle="solid"
+                      size="middle"
+                    >
+                      <Radio.Button value="CASH">
+                        <DollarOutlined style={{ marginRight: 6 }} />
+                        Tiền mặt
+                      </Radio.Button>
+                      <Radio.Button value="TRANSFER">
+                        <QrcodeOutlined style={{ marginRight: 6 }} />
+                        Chuyển khoản (VietQR)
+                      </Radio.Button>
+                      <Radio.Button value="CARD">
+                        <CreditCardOutlined style={{ marginRight: 6 }} />
+                        Thẻ ngân hàng
+                      </Radio.Button>
+                    </Radio.Group>
                   </div>
-                </div>
+
+                  {/* QR display block for Transfer method */}
+                  {paymentMethod === 'TRANSFER' && (
+                    <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', background: '#e6f7ff', border: '1px solid #91d5ff', padding: 12, borderRadius: 6, gap: 16 }}>
+                      <img src={qrImageUrl} alt="VietQR" style={{ width: 130, height: 130, background: '#fff', padding: 4, border: '1px solid #d9d9d9', borderRadius: 4 }} />
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: '#1890ff' }}>Thanh toán chuyển khoản nhanh qua VietQR</div>
+                        <div style={{ fontSize: 12, color: '#595959', marginTop: 4 }}>
+                          <div>Ngân hàng: <strong>BIDV (Mã ngân hàng: 970418)</strong></div>
+                          <div>Số tài khoản: <strong>2152486504</strong></div>
+                          <div>Chủ tài khoản: <strong>TRAN HUU NAM</strong></div>
+                          <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{Number(selectedOrder.totalAmount).toLocaleString('vi-VN')}đ</strong></div>
+                          <div>Nội dung chuyển khoản: <strong>Thanh toan vien phi ${selectedOrder.orderCode}</strong></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Action checkout buttons */}
               <div style={{ marginTop: 24, textAlign: 'right' }}>
                 <Space size="middle">
-                  <Button
-                    icon={<PrinterOutlined />}
-                    onClick={() => handlePrintInvoice(selectedOrder)}
-                  >
-                    Xem phiếu nháp
-                  </Button>
-                  <Button
-                    type="primary"
-                    size="large"
-                    loading={paying}
-                    onClick={handlePayment}
-                    style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', height: 42, padding: '0 24px' }}
-                  >
-                    Xác nhận thanh toán & In hóa đơn
-                  </Button>
+                  {statusFilter === 'PENDING' ? (
+                    <>
+                      <Button
+                        icon={<PrinterOutlined />}
+                        onClick={() => handlePrintInvoice(selectedOrder)}
+                      >
+                        Xem phiếu nháp
+                      </Button>
+                      <Button
+                        type="primary"
+                        size="large"
+                        loading={paying}
+                        onClick={handlePayment}
+                        style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', height: 42, padding: '0 24px' }}
+                      >
+                        Xác nhận thanh toán & In hóa đơn
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        icon={<PrinterOutlined />}
+                        onClick={() => handlePrintInvoice(selectedOrder)}
+                      >
+                        In lại hóa đơn
+                      </Button>
+                      {selectedOrder.items?.some(item => item.status === 'PENDING') && (
+                        <Button
+                          type="primary"
+                          danger
+                          size="large"
+                          onClick={() => {
+                            setSelectedItemsForRefund([]);
+                            setRefundReason('');
+                            setRefundPaymentMethod('CASH');
+                            setRefundModalVisible(true);
+                          }}
+                          style={{ height: 42, padding: '0 24px' }}
+                        >
+                          Hoàn tiền / Hủy dịch vụ
+                        </Button>
+                      )}
+                    </>
+                  )}
                 </Space>
               </div>
             </Card>
           ) : (
             <Card style={{ minHeight: 'calc(100vh - 120px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Empty description="Vui lòng chọn hóa đơn chờ thanh toán bên trái" />
+              <Empty description={statusFilter === 'PENDING' ? 'Vui lòng chọn hóa đơn chờ thanh toán bên trái' : 'Vui lòng chọn hóa đơn đã thanh toán bên trái'} />
             </Card>
+          )}
+
+          {/* Refund Modal */}
+          {selectedOrder && (
+            <Modal
+              title={
+                <span style={{ color: '#d9363e', fontWeight: 600 }}>
+                  Hủy dịch vụ & Hoàn trả tiền y tế
+                </span>
+              }
+              open={refundModalVisible}
+              onCancel={() => setRefundModalVisible(false)}
+              okText="Xác nhận hoàn tiền"
+              cancelText="Hủy bỏ"
+              confirmLoading={refundLoading}
+              onOk={handleRefundSubmit}
+              width={650}
+              destroyOnClose
+            >
+              <div style={{ marginBottom: 16, fontSize: 13 }}>
+                Hóa đơn: <strong>{selectedOrder.orderCode}</strong> - Bệnh nhân: <strong style={{ textTransform: 'uppercase' }}>{selectedOrder.patient?.fullName}</strong>
+              </div>
+
+              <div style={{ marginBottom: 12, fontWeight: 600 }}>Chọn dịch vụ muốn hoàn trả:</div>
+              <Table
+                dataSource={selectedOrder.items?.filter(i => i.status === 'PENDING') || []}
+                rowKey="id"
+                pagination={false}
+                size="small"
+                rowSelection={{
+                  type: 'checkbox',
+                  selectedRowKeys: selectedItemsForRefund,
+                  onChange: (selectedKeys) => setSelectedItemsForRefund(selectedKeys),
+                }}
+                columns={[
+                  {
+                    title: 'Tên dịch vụ',
+                    dataIndex: ['service', 'name'],
+                    key: 'serviceName',
+                  },
+                  {
+                    title: 'Đơn giá',
+                    dataIndex: 'price',
+                    key: 'price',
+                    align: 'right',
+                    render: p => `${Number(p).toLocaleString('vi-VN')}đ`,
+                  },
+                  {
+                    title: 'SL',
+                    dataIndex: 'quantity',
+                    key: 'quantity',
+                    align: 'center',
+                  },
+                  {
+                    title: 'Tổng cộng',
+                    key: 'total',
+                    align: 'right',
+                    render: (_, r) => `${(Number(r.price) * r.quantity).toLocaleString('vi-VN')}đ`,
+                  }
+                ]}
+              />
+
+              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff2f0', border: '1px solid #ffccc7', padding: '10px 14px', borderRadius: 6 }}>
+                <span style={{ fontWeight: 600 }}>Tổng tiền hoàn trả:</span>
+                <span style={{ color: '#ff4d4f', fontWeight: 700, fontSize: 18 }}>
+                  {(() => {
+                    const totalRefund = selectedItemsForRefund.reduce((sum, itemId) => {
+                      const item = selectedOrder.items?.find(i => i.id === itemId);
+                      return sum + (item ? Number(item.price) * item.quantity : 0);
+                    }, 0);
+                    return totalRefund.toLocaleString('vi-VN');
+                  })()} đ
+                </span>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div style={{ marginBottom: 6, fontWeight: 600 }}>Hình thức hoàn tiền:</div>
+                <Radio.Group
+                  value={refundPaymentMethod}
+                  onChange={e => setRefundPaymentMethod(e.target.value)}
+                  buttonStyle="solid"
+                  size="middle"
+                >
+                  <Radio.Button value="CASH">Tiền mặt</Radio.Button>
+                  <Radio.Button value="TRANSFER">Chuyển khoản</Radio.Button>
+                  <Radio.Button value="CARD">Thẻ ngân hàng</Radio.Button>
+                </Radio.Group>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div style={{ marginBottom: 6, fontWeight: 600 }}>Lý do hoàn trả:</div>
+                <Input.TextArea
+                  rows={3}
+                  value={refundReason}
+                  onChange={e => setRefundReason(e.target.value)}
+                  placeholder="Nhập lý do chi tiết hoàn trả dịch vụ..."
+                />
+              </div>
+            </Modal>
           )}
         </Col>
       </Row>
