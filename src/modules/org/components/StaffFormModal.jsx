@@ -2,16 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Row, Col, Switch, message } from 'antd';
 import dayjs from 'dayjs';
 import { staffService } from '../../../services/staffService';
+import { departmentService } from '../../../services/departmentService';
 
 const { Option } = Select;
 
 export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [departments, setDepartments] = useState([]);
   const isEdit = !!staff;
 
   useEffect(() => {
     if (visible) {
+      fetchDepartments();
       if (staff) {
         form.setFieldsValue({
           fullName: staff.fullName,
@@ -25,6 +28,8 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
           joinDate: staff.joinDate ? dayjs(staff.joinDate) : null,
           title: staff.title,
           isClinical: staff.isClinical,
+          nickname: staff.nickname || '',
+          departmentId: staff.departmentId || undefined,
         });
       } else {
         form.resetFields();
@@ -37,6 +42,15 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
       }
     }
   }, [visible, staff, form]);
+
+  const fetchDepartments = async () => {
+    try {
+      const list = await departmentService.getDepartments();
+      setDepartments(list);
+    } catch (err) {
+      console.error('Không thể tải phòng ban cho StaffFormModal:', err);
+    }
+  };
 
   const handleSubmit = async () => {
     try {
@@ -54,6 +68,8 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
         joinDate: values.joinDate ? values.joinDate.format('YYYY-MM-DD') : null,
         title: values.title,
         isClinical: values.isClinical,
+        nickname: values.title === 'DOCTOR' ? (values.nickname || null) : null,
+        departmentId: values.departmentId || null,
       };
 
       if (isEdit) {
@@ -131,6 +147,36 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
                 <Option value="ADMINISTRATOR">Quản trị viên (ADMINISTRATOR)</Option>
                 <Option value="OTHER">Khác (OTHER)</Option>
               </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item label="Bộ phận trực thuộc" name="departmentId">
+              <Select placeholder="Chọn bộ phận" allowClear>
+                {departments.map((dept) => (
+                  <Option key={dept.id} value={dept.id}>{dept.name}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              noStyle
+              shouldUpdate={(prevValues, currentValues) => prevValues.title !== currentValues.title}
+            >
+              {({ getFieldValue }) =>
+                getFieldValue('title') === 'DOCTOR' ? (
+                  <Form.Item
+                    label="Biệt danh bác sĩ (Hiển thị lịch)"
+                    name="nickname"
+                    rules={[{ required: true, message: 'Vui lòng nhập biệt danh' }]}
+                  >
+                    <Input placeholder="Ví dụ: BS Nam TH" />
+                  </Form.Item>
+                ) : null
+              }
             </Form.Item>
           </Col>
         </Row>

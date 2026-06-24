@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { staffService } from '../../../services/staffService';
 import { orgService } from '../../../services/orgService';
+import { departmentService } from '../../../services/departmentService';
 import StaffFormModal from './StaffFormModal';
 import StaffCertificateModal from './StaffCertificateModal';
 import StaffAssignmentModal from './StaffAssignmentModal';
@@ -34,6 +35,7 @@ export default function StaffListTable() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   // Filters State
   const [selectedBranchId, setSelectedBranchId] = useState('ALL');
@@ -51,17 +53,42 @@ export default function StaffListTable() {
 
   useEffect(() => {
     initData();
+
+    const handleBranchChanged = () => {
+      const activeId = localStorage.getItem('activeBranchId');
+      if (activeId) {
+        setSelectedBranchId(activeId);
+        fetchStaffList({ branchId: activeId });
+      }
+    };
+    window.addEventListener('branchChanged', handleBranchChanged);
+    return () => {
+      window.removeEventListener('branchChanged', handleBranchChanged);
+    };
   }, []);
 
   const initData = async () => {
     try {
       setLoading(true);
-      const branchList = await orgService.getBranches();
+      const [branchList, deptList] = await Promise.all([
+        orgService.getBranches(),
+        departmentService.getDepartments(),
+      ]);
       setBranches(branchList);
-      fetchStaffList();
+      setDepartments(deptList);
+
+      const activeId = localStorage.getItem('activeBranchId');
+      const storedExists = branchList.some(b => b.id === activeId);
+      if (activeId && storedExists) {
+        setSelectedBranchId(activeId);
+        fetchStaffList({ branchId: activeId });
+      } else {
+        setSelectedBranchId('ALL');
+        fetchStaffList();
+      }
     } catch (err) {
       console.error(err);
-      message.error('Không thể tải danh sách chi nhánh');
+      message.error('Không thể tải thông tin khởi tạo');
       setLoading(false);
     }
   };
@@ -144,6 +171,12 @@ export default function StaffListTable() {
     );
   });
 
+  const getDepartmentName = (id) => {
+    if (!id) return <span style={{ color: '#bfbfbf' }}>-</span>;
+    const dept = departments.find((d) => d.id === id);
+    return dept ? dept.name : <span style={{ color: '#bfbfbf' }}>-</span>;
+  };
+
   const columns = [
     {
       title: 'Mã NV',
@@ -159,7 +192,7 @@ export default function StaffListTable() {
       width: '18%',
       render: (text, record) => (
         <div>
-          <div style={{ fontWeight: 600 }}>{text}</div>
+          <div style={{ fontWeight: 600 }}>{text} {record.nickname ? `(${record.nickname})` : ''}</div>
           {record.isClinical && (
             <small style={{ color: '#52c41a', fontWeight: 500 }}>Chuyên môn lâm sàng</small>
           )}
@@ -175,6 +208,13 @@ export default function StaffListTable() {
         const tag = TITLE_TAGS[title] || { color: 'default', label: title };
         return <Tag color={tag.color}>{tag.label}</Tag>;
       },
+    },
+    {
+      title: 'Bộ phận',
+      dataIndex: 'departmentId',
+      key: 'departmentId',
+      width: '12%',
+      render: (id) => getDepartmentName(id),
     },
     {
       title: 'Giới tính',

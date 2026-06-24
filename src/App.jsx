@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Avatar, Space, Button, theme, ConfigProvider } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Space, Button, Select, theme, ConfigProvider } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -15,18 +15,53 @@ import {
 import LoginPage from './modules/auth/pages/LoginPage';
 import OrgManagementPage from './modules/org/pages/OrgManagementPage';
 import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
+import { orgService } from './services/orgService';
 import './App.css';
 
 const { Header, Sider, Content } = Layout;
 
 function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [branches, setBranches] = useState([]);
+  const [activeBranchId, setActiveBranchId] = useState(localStorage.getItem('activeBranchId') || '');
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const list = await orgService.getBranches();
+        setBranches(list);
+        if (list.length > 0) {
+          const currentStored = localStorage.getItem('activeBranchId');
+          const exists = list.some(b => b.id === currentStored);
+          if (!exists) {
+            localStorage.setItem('activeBranchId', list[0].id);
+            setActiveBranchId(list[0].id);
+            window.dispatchEvent(new Event('branchChanged'));
+          } else if (!currentStored) {
+            localStorage.setItem('activeBranchId', list[0].id);
+            setActiveBranchId(list[0].id);
+            window.dispatchEvent(new Event('branchChanged'));
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi tải chi nhánh ở Header:', err);
+      }
+    };
+    fetchBranches();
+  }, []);
+
+  const handleBranchChange = (value) => {
+    localStorage.setItem('activeBranchId', value);
+    setActiveBranchId(value);
+    window.dispatchEvent(new Event('branchChanged'));
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('activeBranchId');
     navigate('/login');
   };
 
@@ -89,12 +124,29 @@ function AdminLayout() {
       </Sider>
       <Layout>
         <Header style={{ padding: '0 16px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 48, boxShadow: '0 1px 4px rgba(0,21,41,.08)' }}>
-          <Button
-            type="text"
-            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            onClick={() => setCollapsed(!collapsed)}
-            style={{ fontSize: '16px', width: 32, height: 32 }}
-          />
+          <Space>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ fontSize: '16px', width: 32, height: 32 }}
+            />
+            {branches.length > 0 && (
+              <Select
+                size="small"
+                style={{ width: 220, marginLeft: 8 }}
+                placeholder="Chọn chi nhánh làm việc"
+                value={activeBranchId}
+                onChange={handleBranchChange}
+              >
+                {branches.map(b => (
+                  <Select.Option key={b.id} value={b.id}>
+                    {b.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            )}
+          </Space>
           <Dropdown overlay={userMenu} placement="bottomRight" trigger={['click']}>
             <Space style={{ cursor: 'pointer' }}>
               <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#52c41a' }} />

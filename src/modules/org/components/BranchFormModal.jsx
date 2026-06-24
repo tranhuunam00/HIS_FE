@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, Row, Col, InputNumber, TimePicker, message } from 'antd';
+import { Modal, Form, Input, Select, Row, Col, InputNumber, TimePicker, Divider, message } from 'antd';
 import dayjs from 'dayjs';
 import { orgService } from '../../../services/orgService';
 
@@ -167,6 +167,37 @@ export default function BranchFormModal({ visible, branch, onClose, onRefresh })
           <Col span={12}>
             <Form.Item label="Kinh độ GPS (Longitude)" name="longitude">
               <InputNumber style={{ width: '100%' }} step={0.000001} placeholder="Ví dụ: 105.843132" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Divider style={{ margin: '8px 0 16px 0' }}>Thông tin Thanh toán VietQR</Divider>
+
+        <Row gutter={12}>
+          <Col span={8}>
+            <Form.Item label="Ngân hàng nhận" name="bankName">
+              <Select placeholder="Chọn ngân hàng">
+                <Option value="Vietcombank">Vietcombank</Option>
+                <Option value="Techcombank">Techcombank</Option>
+                <Option value="BIDV">BIDV</Option>
+                <Option value="VietinBank">VietinBank</Option>
+                <Option value="MBBank">MB Bank</Option>
+                <Option value="ACB">ACB</Option>
+                <Option value="VPBank">VPBank</Option>
+                <Option value="TPBank">TPBank</Option>
+                <Option value="Agribank">Agribank</Option>
+                <Option value="Sacombank">Sacombank</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item label="Số tài khoản" name="bankAccountNo">
+              <Input placeholder="Ví dụ: 1903..." />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item label="Tên chủ tài khoản" name="bankAccountName">
+              <Input placeholder="Ví dụ: NGUYEN VAN A" style={{ textTransform: 'uppercase' }} />
             </Form.Item>
           </Col>
         </Row>

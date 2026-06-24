@@ -21,4 +21,9 @@ export const resourceService = {
     const res = await api.patch(`/resources/${id}/status`, { isActive });
     return res.data;
   },
+
+  toggleResourceOccupancy: async (id, isOccupied) => {
+    const res = await api.patch(`/resources/${id}/occupancy`, { isOccupied });
+    return res.data;
+  },
 };
