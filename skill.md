@@ -9,6 +9,7 @@ Tài liệu này định nghĩa các nguyên tắc phát triển, cấu trúc th
 *   **Framework**: ReactJS.
 *   **Ngôn ngữ**: JavaScript (JS) (ES6+).
 *   **UI Library**: Ant Design (antd).
+*   **Màu sắc chủ đạo (Theme & Brand Colors)**: Xanh lá cây nhẹ (Light Green, ví dụ: `#4caf50` hoặc `#52c41a`) và Trắng (White, `#ffffff`) là tông màu chỉ đạo thống nhất toàn hệ thống.
 *   **Tiêu chuẩn Layout**: **Compact & Dense UI** (Thiết kế cực kỳ tối giản không gian, hạn chế padding/margin thừa để tối đa hóa lượng thông tin hiển thị trên một màn hình).
 
 ---

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Avatar, Space, Button, theme } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Space, Button, theme, ConfigProvider } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import LoginPage from './modules/auth/pages/LoginPage';
 import OrgManagementPage from './modules/org/pages/OrgManagementPage';
+import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
 import './App.css';
 
 const { Header, Sider, Content } = Layout;
@@ -56,8 +57,7 @@ function AdminLayout() {
     {
       key: '/admin/medical',
       icon: <MedicineBoxOutlined />,
-      label: 'Danh mục Y tế',
-      disabled: true,
+      label: <Link to="/admin/medical">Danh mục Y tế</Link>,
     },
     {
       key: '/admin/schedules',
@@ -97,7 +97,7 @@ function AdminLayout() {
           />
           <Dropdown overlay={userMenu} placement="bottomRight" trigger={['click']}>
             <Space style={{ cursor: 'pointer' }}>
-              <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#1677ff' }} />
+              <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#52c41a' }} />
               <span style={{ fontSize: 13, fontWeight: 500, color: '#262626' }}>BS. Trần Hữu Nam</span>
             </Space>
           </Dropdown>
@@ -105,6 +105,7 @@ function AdminLayout() {
         <Content style={{ margin: 0, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
           <Routes>
             <Route path="org" element={<OrgManagementPage />} />
+            <Route path="medical" element={<MedicalCatalogPage />} />
             <Route path="*" element={<Navigate to="org" replace />} />
           </Routes>
         </Content>
@@ -124,19 +125,27 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/admin/*"
-          element={
-            <ProtectedRoute>
-              <AdminLayout />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/admin/org" replace />} />
-      </Routes>
-    </Router>
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#52c41a', // Màu xanh lá cây nhẹ chỉ đạo
+        },
+      }}
+    >
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/admin/*"
+            element={
+              <ProtectedRoute>
+                <AdminLayout />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/admin/org" replace />} />
+        </Routes>
+      </Router>
+    </ConfigProvider>
   );
 }

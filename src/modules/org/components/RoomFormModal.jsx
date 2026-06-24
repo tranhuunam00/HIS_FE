@@ -1,0 +1,181 @@
+import React, { useEffect, useState } from 'react';
+import { Modal, Form, Input, Select, InputNumber, Row, Col, message } from 'antd';
+import { roomService } from '../../../services/roomService';
+
+const { Option } = Select;
+
+export default function RoomFormModal({ visible, room, branchId, specialties, branches, onClose, onRefresh }) {
+  const [form] = Form.useForm();
+  const [submitting, setSubmitting] = useState(false);
+  const isEdit = !!room;
+
+  useEffect(() => {
+    if (visible) {
+      if (room) {
+        form.setFieldsValue({
+          branchId: room.branchId,
+          code: room.code,
+          name: room.name,
+          type: room.type,
+          specialtyId: room.specialtyId || undefined,
+          floor: room.floor || '',
+          capacity: room.capacity || 1,
+        });
+      } else {
+        form.resetFields();
+        form.setFieldsValue({
+          branchId: branchId,
+          type: 'CLINIC',
+          capacity: 2,
+        });
+      }
+    }
+  }, [visible, room, branchId, form]);
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      setSubmitting(true);
+
+      const payload = {
+        name: values.name,
+        type: values.type,
+        specialtyId: values.specialtyId || null,
+        floor: values.floor || null,
+        capacity: values.capacity,
+      };
+
+      if (isEdit) {
+        await roomService.updateRoom(room.id, payload);
+        message.success('Cập nhật thông tin phòng thành công');
+      } else {
+        const createPayload = {
+          ...payload,
+          branchId: values.branchId,
+          code: values.code,
+        };
+        await roomService.createRoom(createPayload);
+        message.success('Thêm phòng mới thành công');
+      }
+      onRefresh();
+      onClose();
+    } catch (err) {
+      if (err.name === 'ValidationError') return;
+      console.error(err);
+      message.error(err.response?.data?.message || 'Có lỗi xảy ra khi lưu phòng khám');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={isEdit ? 'Chỉnh sửa phòng khám' : 'Thêm phòng mới'}
+      open={visible}
+      onOk={handleSubmit}
+      onCancel={onClose}
+      confirmLoading={submitting}
+      destroyOnClose
+      width={550}
+      size="small"
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        size="small"
+        style={{ marginTop: 12 }}
+      >
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item
+              label="Chi nhánh"
+              name="branchId"
+              rules={[{ required: true, message: 'Vui lòng chọn chi nhánh' }]}
+            >
+              <Select placeholder="Chọn chi nhánh" disabled={isEdit}>
+                {branches.map((b) => (
+                  <Option key={b.id} value={b.id}>
+                    {b.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              label="Phân loại phòng"
+              name="type"
+              rules={[{ required: true, message: 'Vui lòng chọn loại phòng' }]}
+            >
+              <Select placeholder="Chọn loại phòng">
+                <Option value="CLINIC">Phòng khám (CLINIC)</Option>
+                <Option value="TREATMENT">Phòng điều trị (TREATMENT)</Option>
+                <Option value="PROCEDURE">Phòng thủ thuật (PROCEDURE)</Option>
+                <Option value="LABORATORY">Phòng xét nghiệm (LABORATORY)</Option>
+                <Option value="IMAGING">Chẩn đoán hình ảnh (IMAGING)</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={12}>
+          <Col span={8}>
+            <Form.Item
+              label="Mã phòng"
+              name="code"
+              rules={[
+                { required: true, message: 'Vui lòng điền mã phòng' },
+                { pattern: /^[A-Z0-9_]+$/, message: 'Mã chỉ được chứa ký tự hoa, số, gạch dưới' }
+              ]}
+            >
+              <Input placeholder="Ví dụ: PK101" disabled={isEdit} />
+            </Form.Item>
+          </Col>
+          <Col span={16}>
+            <Form.Item
+              label="Tên phòng khám / buồng bệnh"
+              name="name"
+              rules={[{ required: true, message: 'Vui lòng điền tên phòng' }]}
+            >
+              <Input placeholder="Ví dụ: Phòng khám Nội 101" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Row gutter={12}>
+          <Col span={12}>
+            <Form.Item
+              label="Chuyên khoa phụ trách"
+              name="specialtyId"
+            >
+              <Select placeholder="Chọn chuyên khoa (nếu có)" allowClear>
+                {specialties.map((s) => (
+                  <Option key={s.id} value={s.id}>
+                    {s.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+          <Col span={6}>
+            <Form.Item
+              label="Vị trí (Tầng)"
+              name="floor"
+            >
+              <Input placeholder="Ví dụ: Tầng 1" />
+            </Form.Item>
+          </Col>
+          <Col span={6}>
+            <Form.Item
+              label="Sức chứa (Ghế/Giường)"
+              name="capacity"
+              rules={[{ required: true, message: 'Nhập sức chứa' }]}
+            >
+              <InputNumber min={1} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
+    </Modal>
+  );
+}

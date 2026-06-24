@@ -1,8 +1,10 @@
 import React from 'react';
 import { Tabs, Card, Typography } from 'antd';
-import { BuildOutlined, SettingOutlined } from '@ant-design/icons';
+import { BuildOutlined, SettingOutlined, HomeOutlined, TeamOutlined } from '@ant-design/icons';
 import OrgSettingsForm from '../components/OrgSettingsForm';
 import BranchListTable from '../components/BranchListTable';
+import RoomListTable from '../components/RoomListTable';
+import StaffListTable from '../components/StaffListTable';
 
 const { Title, Paragraph } = Typography;
 
@@ -27,6 +29,26 @@ export default function OrgManagementPage() {
         </span>
       ),
       children: <BranchListTable />,
+    },
+    {
+      key: 'rooms',
+      label: (
+        <span>
+          <HomeOutlined />
+          Phòng ban & Cơ sở vật chất
+        </span>
+      ),
+      children: <RoomListTable />,
+    },
+    {
+      key: 'staff',
+      label: (
+        <span>
+          <TeamOutlined />
+          Quản lý nhân sự
+        </span>
+      ),
+      children: <StaffListTable />,
     },
   ];
 
