@@ -30,14 +30,10 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
   const [specialties, setSpecialties] = useState([]);
   const [allRooms, setAllRooms] = useState([]);
   const [filteredRooms, setFilteredRooms] = useState([]);
-  const [services, setServices] = useState([]);
-  const [loadingServices, setLoadingServices] = useState(false);
   const [doctors, setDoctors] = useState([]);
   const [loadingDoctors, setLoadingDoctors] = useState(false);
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState(null);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
-  const [selectedServiceIds, setSelectedServiceIds] = useState([]);
-  const [selectedServices, setSelectedServices] = useState([]);
 
   useEffect(() => {
     if (visible) {
@@ -45,11 +41,8 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
       form.resetFields();
       setSelectedSpecialtyId(null);
       setSelectedRoomId(null);
-      setServices([]);
       setDoctors([]);
       setFilteredRooms([]);
-      setSelectedServiceIds([]);
-      setSelectedServices([]);
 
       if (appointment) {
         form.setFieldsValue({
@@ -83,10 +76,7 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
     setSelectedSpecialtyId(specialtyId);
     setSelectedRoomId(null);
     setDoctors([]);
-    setServices([]);
-    setSelectedServiceIds([]);
-    setSelectedServices([]);
-    form.setFieldsValue({ currentRoomId: undefined, currentDoctorId: undefined, serviceId: undefined });
+    form.setFieldsValue({ currentRoomId: undefined, currentDoctorId: undefined });
 
     if (!specialtyId) {
       setFilteredRooms(allRooms);
@@ -96,16 +86,6 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
     // Filter rooms: show rooms that match the specialty OR have no specialty (general rooms)
     const matchingRooms = allRooms.filter(r => !r.specialtyId || r.specialtyId === specialtyId);
     setFilteredRooms(matchingRooms.length > 0 ? matchingRooms : allRooms);
-
-    setLoadingServices(true);
-    try {
-      const svcList = await medicalService.getServices({ specialtyId, isActive: true });
-      setServices(svcList);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingServices(false);
-    }
   };
 
 
@@ -166,27 +146,12 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
     }
   };
 
-  const handlePrintTicket = (visitData, patientName, roomName, doctorName, specialtyName, servicesList = []) => {
+  const handlePrintTicket = (visitData, patientName, roomName, doctorName, specialtyName) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) { message.warning('Vui long cho phep popup de in phieu tiep nhan'); return; }
 
     const now = new Date();
     const dateTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
-
-    const totalAmt = servicesList.reduce((s, svc) => s + Number(svc.prices?.[0]?.amount ?? svc.price ?? 0), 0);
-    const servicesHtml = servicesList.length > 0
-      ? `<div style="border-top:1px dashed #d1d5db;margin:8px 0;padding-top:6px">
-          <p style="font-weight:600;margin-bottom:4px">Dich vu dang ky:</p>
-          ${servicesList.map(svc => {
-            const price = svc.prices?.[0]?.amount ?? svc.price ?? null;
-            return `<p style="display:flex;justify-content:space-between">
-              <span>${svc.name}</span>
-              <span style="color:#059669;font-weight:600">${price != null ? Number(price).toLocaleString('vi-VN') + 'd' : 'Lien he'}</span>
-            </p>`;
-          }).join('')}
-          ${totalAmt > 0 ? `<p style="display:flex;justify-content:space-between;font-weight:700;border-top:1px solid #e5e7eb;margin-top:4px;padding-top:4px"><span>Tong tien:</span><span style="color:#059669">${totalAmt.toLocaleString('vi-VN')}d</span></p>` : ''}
-        </div>`
-      : '';
 
     printWindow.document.write(`<!DOCTYPE html><html><head><title>Phieu Tiep Nhan</title>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -205,7 +170,6 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
         ${specialtyName ? `<p><strong>Chuyen khoa:</strong> ${specialtyName}</p>` : ''}
         <p><strong>Noi kham:</strong> ${roomName || 'Cho dieu phoi'}</p>
         <p><strong>Bac si:</strong> ${doctorName || 'Cho dieu phoi'}</p>
-        ${servicesHtml}
         <div class="ft">Ngay tiep nhan: ${dateTimeStr}<br>Vui long theo doi so thu tu tren man hinh</div>
       </div>
       <script>window.onload=function(){window.print();setTimeout(function(){window.close()},300)}</script>
@@ -240,7 +204,7 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
       const selectedSpec = specialties.find(s => s.id === selectedSpecialtyId);
       const pName = appointment?.patient?.fullName || patient?.fullName || 'Benh nhan';
 
-      handlePrintTicket(result, pName, selectedRoom?.name, selectedDoc?.fullName, selectedSpec?.name, selectedServices);
+      handlePrintTicket(result, pName, selectedRoom?.name, selectedDoc?.fullName, selectedSpec?.name);
       onSuccess(result);
       onCancel();
     } catch (err) {
@@ -255,46 +219,7 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
   const patientCode = appointment?.patient?.patientCode || patient?.patientCode || '';
   const patientPhone = appointment?.patient?.phone || patient?.phone || '';
 
-  const serviceColumns = [
-    {
-      title: 'Tên dịch vụ',
-      dataIndex: 'name',
-      key: 'name',
-      render: (t, r) => (
-        <div>
-          <Text strong style={{ fontSize: 12 }}>{t}</Text>
-          {r.durationMinutes ? <Text type="secondary" style={{ fontSize: 11, marginLeft: 6 }}>~{r.durationMinutes} phút</Text> : null}
-        </div>
-      ),
-    },
-    { title: 'Loại', dataIndex: 'category', key: 'category', width: 80, render: t => <Tag color="blue" style={{ fontSize: 11 }}>{t || 'Khám'}</Tag> },
-    {
-      title: 'Đơn giá',
-      key: 'price',
-      width: 110,
-      align: 'right',
-      render: (_, r) => {
-        const price = r.prices?.[0]?.amount ?? r.price ?? null;
-        return price != null
-          ? <Text type="success" style={{ fontSize: 12, fontWeight: 700 }}>{Number(price).toLocaleString('vi-VN')}đ</Text>
-          : <Text type="secondary" style={{ fontSize: 12 }}>Liên hệ</Text>;
-      },
-    },
-  ];
-
-  const serviceRowSelection = {
-    selectedRowKeys: selectedServiceIds,
-    onChange: (keys, rows) => {
-      setSelectedServiceIds(keys);
-      setSelectedServices(rows);
-    },
-    getCheckboxProps: (record) => ({ name: record.name }),
-  };
-
-  const totalPrice = selectedServices.reduce((sum, s) => {
-    const price = s.prices?.[0]?.amount ?? s.price ?? 0;
-    return sum + Number(price);
-  }, 0);
+  // Selected services table config removed as services selection is done by doctors after check-in.
 
   return (
     <Modal
@@ -327,57 +252,13 @@ export default function CheckInModal({ visible, onCancel, onSuccess, appointment
         {/* Step 1: Specialty */}
         <Form.Item
           name="specialtyId"
-          label={<span><strong style={{ color: '#059669' }}>Buoc 1:</strong> Chon Chuyen khoa <Text type="secondary" style={{ fontSize: 11 }}>(loc dich vu + gia)</Text></span>}
+          label={<span><strong style={{ color: '#059669' }}>Buoc 1:</strong> Chon Chuyen khoa dinh huong</span>}
           rules={[{ required: true, message: 'Vui long chon chuyen khoa' }]}
         >
           <Select placeholder="Chon chuyen khoa kham..." onChange={handleSpecialtyChange} showSearch optionFilterProp="children">
             {specialties.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
           </Select>
         </Form.Item>
-
-        {/* Services table - selectable */}
-        {selectedSpecialtyId && (
-          <div style={{ marginBottom: 14, padding: '8px 12px', background: '#f9fafb', borderRadius: 6, border: '1px solid #e5e7eb' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <Text style={{ fontSize: 12, color: '#374151', fontWeight: 600 }}>Dịch vụ &amp; giá theo chuyên khoa <Text type="secondary" style={{ fontWeight: 400 }}>(tích chọn dịch vụ muốn đăng ký)</Text></Text>
-              {selectedServiceIds.length > 0 && (
-                <Text type="success" style={{ fontSize: 12, fontWeight: 700 }}>
-                  Đã chọn {selectedServiceIds.length} dịch vụ · Tổng: {totalPrice.toLocaleString('vi-VN')}đ
-                </Text>
-              )}
-            </div>
-            {loadingServices ? (
-              <div style={{ textAlign: 'center', padding: '8px 0' }}><Spin size="small" /></div>
-            ) : services.length > 0 ? (
-              <Table
-                dataSource={services}
-                columns={serviceColumns}
-                rowKey="id"
-                size="small"
-                pagination={false}
-                rowSelection={serviceRowSelection}
-                onRow={(record) => ({
-                  onClick: () => {
-                    const newKeys = selectedServiceIds.includes(record.id)
-                      ? selectedServiceIds.filter(k => k !== record.id)
-                      : [...selectedServiceIds, record.id];
-                    const newRows = services.filter(s => newKeys.includes(s.id));
-                    setSelectedServiceIds(newKeys);
-                    setSelectedServices(newRows);
-                  },
-                  style: {
-                    cursor: 'pointer',
-                    background: selectedServiceIds.includes(record.id) ? '#f0fdf4' : undefined,
-                  },
-                })}
-                style={{ marginTop: 0 }}
-                scroll={{ y: 130 }}
-              />
-            ) : (
-              <Alert message="Chưa có dịch vụ nào cho chuyên khoa này" type="info" showIcon style={{ fontSize: 12 }} />
-            )}
-          </div>
-        )}
 
         <Row gutter={12}>
           <Col span={12}>

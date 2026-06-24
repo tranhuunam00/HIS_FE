@@ -11,6 +11,8 @@ import {
   CalendarOutlined,
   FileTextOutlined,
   LogoutOutlined,
+  DollarOutlined,
+  ShoppingCartOutlined,
 } from '@ant-design/icons';
 import LoginPage from './modules/auth/pages/LoginPage';
 import OrgManagementPage from './modules/org/pages/OrgManagementPage';
@@ -21,6 +23,8 @@ import FormManagementPage from './modules/forms/pages/FormManagementPage';
 import PatientManagementPage from './modules/reception/pages/PatientManagementPage';
 import AppointmentManagementPage from './modules/reception/pages/AppointmentManagementPage';
 import QueueDashboardPage from './modules/reception/pages/QueueDashboardPage';
+import OrderManagementPage from './modules/billing/pages/OrderManagementPage';
+import CashierPage from './modules/billing/pages/CashierPage';
 import { orgService } from './services/orgService';
 import { authAdminService } from './services/authAdminService';
 import './App.css';
@@ -148,6 +152,16 @@ function AdminLayout() {
       icon: <BuildOutlined />,
       label: <Link to="/admin/queue">Điều phối & Hàng đợi</Link>,
     },
+    {
+      key: '/admin/billing/orders',
+      icon: <ShoppingCartOutlined />,
+      label: <Link to="/admin/billing/orders">Chỉ định dịch vụ</Link>,
+    },
+    {
+      key: '/admin/billing/cashier',
+      icon: <DollarOutlined />,
+      label: <Link to="/admin/billing/cashier">Thu ngân & Thanh toán</Link>,
+    },
   ];
 
   return (
@@ -208,6 +222,8 @@ function AdminLayout() {
             <Route path="patients" element={<PatientManagementPage />} />
             <Route path="appointments" element={<AppointmentManagementPage />} />
             <Route path="queue" element={<QueueDashboardPage />} />
+            <Route path="billing/orders" element={<OrderManagementPage />} />
+            <Route path="billing/cashier" element={<CashierPage />} />
             <Route path="*" element={<Navigate to="org" replace />} />
           </Routes>
         </Content>
