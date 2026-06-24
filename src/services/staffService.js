@@ -6,6 +6,18 @@ export const staffService = {
     return res.data;
   },
 
+  /** Lấy bác sĩ được phân công cho phòng cụ thể (qua staff_assignments) */
+  getDoctorsByRoom: async (branchId, roomId) => {
+    const res = await api.get('/staff', { params: { branchId, roomId, title: 'DOCTOR', isActive: true } });
+    return res.data;
+  },
+
+  /** Lấy bác sĩ theo chuyên khoa được phân công */
+  getDoctorsBySpecialty: async (branchId, specialtyId) => {
+    const res = await api.get('/staff', { params: { branchId, specialtyId, title: 'DOCTOR', isActive: true } });
+    return res.data;
+  },
+
   getStaff: async (id) => {
     const res = await api.get(`/staff/${id}`);
     return res.data;
