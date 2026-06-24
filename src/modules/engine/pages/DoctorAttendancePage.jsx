@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Typography, Button, Space, Modal, Radio, Input, Form, Tag, Alert, Spin, message, Row, Col, Switch } from 'antd';
 import { ClockCircleOutlined, CheckCircleOutlined, LogoutOutlined, CalendarOutlined, SolutionOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { scheduleService } from '../../../services/scheduleService';
 import { attendanceService } from '../../../services/attendanceService';
 import { authAdminService } from '../../../services/authAdminService';
@@ -10,9 +11,13 @@ const { Title, Text, Paragraph } = Typography;
 export default function DoctorAttendancePage() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [todaySchedules, setTodaySchedules] = useState([]);
   const [attendances, setAttendances] = useState([]);
   const [time, setTime] = useState(new Date());
+
+  // Shifts state
+  const [lastShift, setLastShift] = useState(null);
+  const [currentShift, setCurrentShift] = useState(null);
+  const [upcomingShift, setUpcomingShift] = useState(null);
 
   // Modal checkout state
   const [checkoutModalVisible, setCheckoutModalVisible] = useState(false);
@@ -22,15 +27,6 @@ export default function DoctorAttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   const activeBranchId = localStorage.getItem('activeBranchId') || '';
-
-  // Get YYYY-MM-DD in local time
-  const getTodayStr = () => {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  };
 
   // Clock effect
   useEffect(() => {
@@ -49,26 +45,67 @@ export default function DoctorAttendancePage() {
         return;
       }
 
-      const today = getTodayStr();
+      // Fetch schedules from today - 3 days to today + 3 days to capture last, current and upcoming shifts
+      const start = dayjs().subtract(3, 'day').format('YYYY-MM-DD');
+      const end = dayjs().add(3, 'day').format('YYYY-MM-DD');
 
-      // Fetch today's resolved schedule
       const resolvedSchedules = await scheduleService.getSchedules({
         staffIds: [user.staff.id],
-        startDate: today,
-        endDate: today,
+        startDate: start,
+        endDate: end,
       });
 
-      // Filter shifts for the active branch
-      const staffSchedule = resolvedSchedules.find((s) => s.staffId === user.staff.id);
-      if (staffSchedule && !staffSchedule.isLeave) {
-        setTodaySchedules(staffSchedule.shifts.filter((s) => s.branchId === activeBranchId));
-      } else {
-        setTodaySchedules([]);
-      }
+      // Flatten and filter shifts for the active branch
+      const allShifts = [];
+      resolvedSchedules.forEach((daySched) => {
+        if (daySched.staffId !== user.staff.id || daySched.isLeave) return;
+        daySched.shifts.forEach((s) => {
+          if (s.branchId !== activeBranchId) return;
 
-      // Fetch today's attendance records
-      const todayAttendances = await attendanceService.getTodayStatus(user.staff.id, today);
-      setAttendances(todayAttendances);
+          const [startH, startM] = s.startTime.split(':').map(Number);
+          const [endH, endM] = s.endTime.split(':').map(Number);
+
+          const shiftStart = dayjs(daySched.date).hour(startH).minute(startM).second(0).toDate();
+          const shiftEnd = dayjs(daySched.date).hour(endH).minute(endM).second(0).toDate();
+
+          allShifts.push({
+            ...s,
+            date: daySched.date,
+            dayOfWeek: daySched.dayOfWeek,
+            shiftStart,
+            shiftEnd,
+          });
+        });
+      });
+
+      // Sort shifts by start time
+      allShifts.sort((a, b) => a.shiftStart.getTime() - b.shiftStart.getTime());
+
+      const now = new Date();
+      const nowTime = now.getTime();
+
+      // Find current shift
+      const curr = allShifts.find(s => nowTime >= s.shiftStart.getTime() && nowTime <= s.shiftEnd.getTime()) || null;
+      setCurrentShift(curr);
+
+      // Find upcoming shift
+      const upcoming = allShifts.find(s => s.shiftStart.getTime() > nowTime) || null;
+      setUpcomingShift(upcoming);
+
+      // Find last shift
+      const pastShifts = allShifts.filter(s => s.shiftEnd.getTime() < nowTime);
+      const last = pastShifts.length > 0 ? pastShifts[pastShifts.length - 1] : null;
+      setLastShift(last);
+
+      // Fetch attendance status for the unique dates of these shifts
+      const uniqueDates = Array.from(new Set([last?.date, curr?.date, upcoming?.date].filter(Boolean)));
+      let allAttendances = [];
+      if (uniqueDates.length > 0) {
+        const attendancePromises = uniqueDates.map((d) => attendanceService.getTodayStatus(user.staff.id, d));
+        const attendanceResults = await Promise.all(attendancePromises);
+        allAttendances = attendanceResults.flat();
+      }
+      setAttendances(allAttendances);
     } catch (err) {
       console.error(err);
       message.error('Không thể tải thông tin điểm danh ca trực');
@@ -95,7 +132,7 @@ export default function DoctorAttendancePage() {
         staffId: currentUser.staff.id,
         branchId: activeBranchId,
         shiftId: shift.shiftId,
-        date: getTodayStr(),
+        date: shift.date,
       });
       message.success(`Điểm danh vào ca (${shift.shiftName}) thành công!`);
       await fetchData();
@@ -135,7 +172,6 @@ export default function DoctorAttendancePage() {
     } catch (err) {
       console.error(err);
       message.error(err.response?.data?.message || 'Điểm danh Check-out thất bại');
-      // Refresh to load latest attendance state (like isAcceptingPatients set to false by backend)
       await fetchData();
     } finally {
       setSubmitting(false);
@@ -153,6 +189,55 @@ export default function DoctorAttendancePage() {
       message.error(err.response?.data?.message || 'Không thể cập nhật trạng thái nhận bệnh');
       setLoading(false);
     }
+  };
+
+  const getCheckInStatus = (shift) => {
+    const now = new Date().getTime();
+    const startMs = shift.shiftStart.getTime();
+    const endMs = shift.shiftEnd.getTime();
+
+    // Check-in early limit: maximum 1 hour early
+    if (now < startMs - 3600000) {
+      return {
+        allowed: false,
+        reason: `Chưa đến giờ điểm danh (chỉ cho phép trước ca tối đa 1 tiếng, từ ${dayjs(startMs - 3600000).format('HH:mm')})`,
+        statusLabel: 'CHƯA ĐẾN GIỜ',
+        tagColor: 'default',
+      };
+    }
+    // Check-in late limit: cannot check-in after the shift ends
+    if (now > endMs) {
+      return {
+        allowed: false,
+        reason: `Ca trực này đã kết thúc vào lúc ${shift.endTime}. Không thể thực hiện điểm danh Check-in.`,
+        statusLabel: 'VẮNG MẶT',
+        tagColor: 'error',
+      };
+    }
+    return {
+      allowed: true,
+      reason: 'Bạn có lịch trực ca này hôm nay. Vui lòng bấm Điểm danh Check-in khi bắt đầu làm việc.',
+      statusLabel: 'SẴN SÀNG ĐIỂM DANH',
+      tagColor: 'processing',
+    };
+  };
+
+  const getCheckOutStatus = (shift, attendance) => {
+    if (!attendance) return { allowed: false, reason: null };
+    const now = new Date().getTime();
+    const endMs = shift.shiftEnd.getTime();
+
+    // Check-out late limit: maximum 1 hour after shift ends
+    if (now > endMs + 3600000) {
+      return {
+        allowed: false,
+        reason: `Ca trực đã kết thúc lúc ${shift.endTime} và quá 1 tiếng sau ca. Bạn không thể tự thực hiện Check-out.`,
+      };
+    }
+    return {
+      allowed: true,
+      reason: null,
+    };
   };
 
   if (loading && !currentUser) {
@@ -181,6 +266,12 @@ export default function DoctorAttendancePage() {
     const date = new Date(dateStr);
     return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
+
+  const displayShifts = [
+    { type: 'LAST', title: 'Ca trực gần nhất', data: lastShift },
+    { type: 'CURRENT', title: 'Ca trực hiện tại', data: currentShift },
+    { type: 'UPCOMING', title: 'Ca trực tiếp theo', data: upcomingShift },
+  ].filter(item => item.data !== null);
 
   return (
     <div style={{ padding: '24px', maxWidth: 1000, margin: '0 auto' }}>
@@ -223,22 +314,58 @@ export default function DoctorAttendancePage() {
         </Card>
       </div>
 
-      {todaySchedules.length === 0 ? (
+      {displayShifts.length === 0 ? (
         <Alert
-          message="Không có lịch trực nào hôm nay"
-          description="Hôm nay bạn không có lịch trực được phân công tại chi nhánh này, hoặc đang trong ngày nghỉ phép."
+          message="Không có lịch trực nào gần đây"
+          description="Hôm nay và các ngày lân cận bạn không có lịch trực được phân công tại chi nhánh này."
           type="info"
           showIcon
           style={{ borderRadius: 8 }}
         />
       ) : (
         <Row gutter={[16, 16]}>
-          {todaySchedules.map((shift) => {
-            // Find if there is an attendance record for this shift
-            const attendance = attendances.find((a) => a.shiftId === shift.shiftId);
+          {displayShifts.map((item) => {
+            const shift = item.data;
+            const attendance = attendances.find((a) => a.shiftId === shift.shiftId && a.date === shift.date);
+            const checkInStatus = getCheckInStatus(shift);
+            const checkOutStatus = getCheckOutStatus(shift, attendance);
+
+            let headerBg = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+            let tagColor = 'warning';
+            let tagText = 'CHƯA ĐIỂM DANH';
+
+            if (attendance) {
+              if (attendance.status === 'CHECKED_IN') {
+                headerBg = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                tagColor = 'processing';
+                tagText = 'ĐANG TRỰC';
+              } else {
+                headerBg = 'linear-gradient(135deg, #64748b 0%, #475569 100%)';
+                tagColor = 'default';
+                tagText = 'ĐÃ KẾT THÚC';
+              }
+            } else {
+              tagColor = checkInStatus.tagColor;
+              tagText = checkInStatus.statusLabel;
+
+              if (checkInStatus.statusLabel === 'VẮNG MẶT') {
+                headerBg = 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)';
+              } else if (checkInStatus.statusLabel === 'CHƯA ĐẾN GIỜ') {
+                headerBg = 'linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%)';
+              }
+            }
+
+            let shiftTypeTag = null;
+            if (item.type === 'LAST') {
+              shiftTypeTag = <Tag color="default" style={{ margin: 0, fontWeight: 'bold' }}>CA GẦN NHẤT</Tag>;
+            } else if (item.type === 'CURRENT') {
+              shiftTypeTag = <Tag color="success" style={{ margin: 0, fontWeight: 'bold' }}>CA ĐANG DIỄN RA</Tag>;
+            } else if (item.type === 'UPCOMING') {
+              shiftTypeTag = <Tag color="blue" style={{ margin: 0, fontWeight: 'bold' }}>CA TIẾP THEO</Tag>;
+            }
 
             return (
-              <Col xs={24} md={12} key={shift.shiftId}>
+              <Col xs={24} md={12} key={`${shift.date}-${shift.shiftId}`}>
                 <Card
                   hoverable
                   style={{
@@ -254,11 +381,7 @@ export default function DoctorAttendancePage() {
                   {/* Card Header with gradient based on status */}
                   <div
                     style={{
-                      background: attendance
-                        ? attendance.status === 'CHECKED_IN'
-                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-                          : 'linear-gradient(135deg, #64748b 0%, #475569 100%)'
-                        : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                      background: headerBg,
                       padding: '16px 20px',
                       color: '#fff',
                     }}
@@ -270,25 +393,15 @@ export default function DoctorAttendancePage() {
                           {shift.shiftName}
                         </Title>
                       </Space>
-                      {attendance ? (
-                        <Space>
-                          {attendance.status === 'CHECKED_IN' && (
-                            <Tag color={attendance.isAcceptingPatients !== false ? 'success' : 'warning'} style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
-                              {attendance.isAcceptingPatients !== false ? 'NHẬN BỆNH' : 'NGƯNG NHẬN BỆNH'}
-                            </Tag>
-                          )}
-                          <Tag color={attendance.status === 'CHECKED_IN' ? 'processing' : 'default'} style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
-                            {attendance.status === 'CHECKED_IN' ? 'ĐANG TRỰC' : 'ĐÃ KẾT THÚC'}
-                          </Tag>
-                        </Space>
-                      ) : (
-                        <Tag color="warning" style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
-                          CHƯA ĐIỂM DANH
+                      <Space>
+                        {shiftTypeTag}
+                        <Tag color={tagColor} style={{ borderRadius: 12, fontWeight: 'bold', margin: 0 }}>
+                          {tagText}
                         </Tag>
-                      )}
+                      </Space>
                     </div>
                     <Text style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: 12, display: 'block', marginTop: 4 }}>
-                      Khung giờ: {shift.startTime} - {shift.endTime}
+                      Ngày trực: {dayjs(shift.date).format('DD/MM/YYYY')} ({shift.dayOfWeek}) | Khung giờ: {shift.startTime} - {shift.endTime}
                     </Text>
                   </div>
 
@@ -296,19 +409,21 @@ export default function DoctorAttendancePage() {
                   <div style={{ padding: '20px' }}>
                     {!attendance ? (
                       <div>
-                        <Paragraph type="secondary" style={{ marginBottom: 20 }}>
-                          Bạn có lịch trực ca này hôm nay. Vui lòng bấm Điểm danh Check-in khi bắt đầu làm việc.
+                        <Paragraph type={checkInStatus.allowed ? 'secondary' : 'danger'} style={{ marginBottom: checkInStatus.allowed ? 20 : 0, fontWeight: checkInStatus.allowed ? 'normal' : 500 }}>
+                          {checkInStatus.reason}
                         </Paragraph>
-                        <Button
-                          type="primary"
-                          icon={<CheckCircleOutlined />}
-                          size="large"
-                          block
-                          style={{ height: 42, borderRadius: 8, fontWeight: 'bold' }}
-                          onClick={() => handleCheckIn(shift)}
-                        >
-                          Điểm danh Check-in
-                        </Button>
+                        {checkInStatus.allowed && (
+                          <Button
+                            type="primary"
+                            icon={<CheckCircleOutlined />}
+                            size="large"
+                            block
+                            style={{ height: 42, borderRadius: 8, fontWeight: 'bold' }}
+                            onClick={() => handleCheckIn(shift)}
+                          >
+                            Điểm danh Check-in
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <div>
@@ -354,17 +469,25 @@ export default function DoctorAttendancePage() {
                         </div>
 
                         {attendance.status === 'CHECKED_IN' && (
-                          <Button
-                            danger
-                            type="primary"
-                            icon={<LogoutOutlined />}
-                            size="large"
-                            block
-                            style={{ height: 42, borderRadius: 8, fontWeight: 'bold' }}
-                            onClick={() => handleOpenCheckOut(attendance)}
-                          >
-                            Báo cáo Kết thúc ca trực
-                          </Button>
+                          checkOutStatus.allowed ? (
+                            <Button
+                              danger
+                              type="primary"
+                              icon={<LogoutOutlined />}
+                              size="large"
+                              block
+                              style={{ height: 42, borderRadius: 8, fontWeight: 'bold' }}
+                              onClick={() => handleOpenCheckOut(attendance)}
+                            >
+                              Báo cáo Kết thúc ca trực
+                            </Button>
+                          ) : (
+                            <div style={{ padding: '4px 0' }}>
+                              <Paragraph type="danger" style={{ marginBottom: 0, fontWeight: 500 }}>
+                                {checkOutStatus.reason}
+                              </Paragraph>
+                            </div>
+                          )
                         )}
                       </div>
                     )}

@@ -556,6 +556,7 @@ export default function ScheduleManagementPage() {
         shifts={shifts}
         branches={branches}
         defaultEffectiveDate={selectedWeek.startOf('week').add(1, 'day')}
+        initialSchedules={selectedStaffForUpdate ? resolvedSchedules.filter(s => s.staffId === selectedStaffForUpdate.id) : []}
         onClose={() => setScheduleUpdateVisible(false)}
         onRefresh={fetchSchedules}
       />

@@ -245,7 +245,14 @@ export default function UserManagementPage() {
     try {
       setIpLoading(true);
       const data = await authAdminService.getBranchAllowedIps(branchId);
-      setAllowedIps(data.map((item, idx) => ({ ...item, key: item.id || `temp-${idx}` })));
+      setAllowedIps(data.map((item, idx) => ({
+        id: item.id,
+        branchId: item.branchId,
+        ip_address: item.ipAddress || '',
+        description: item.description || '',
+        is_active: item.isActive !== false,
+        key: item.id || `temp-${idx}`
+      })));
     } catch (err) {
       console.error(err);
       message.error('Không thể tải danh sách IP của chi nhánh');
@@ -298,9 +305,9 @@ export default function UserManagementPage() {
     try {
       setIpLoading(true);
       const payload = allowedIps.map((item) => ({
-        ip_address: item.ip_address,
+        ipAddress: item.ip_address,
         description: item.description,
-        is_active: item.is_active,
+        isActive: item.is_active,
       }));
 
       await authAdminService.updateBranchAllowedIps(selectedBranchId, payload);
@@ -340,35 +347,42 @@ export default function UserManagementPage() {
       title: 'Tên đăng nhập',
       dataIndex: 'username',
       key: 'username',
-      width: '12%',
+      width: '10%',
       render: (text) => <span style={{ fontWeight: 600 }}>{text}</span>,
     },
     {
       title: 'Nhân viên',
       dataIndex: 'staffId',
       key: 'staffId',
-      width: '18%',
+      width: '15%',
       render: (staffId) => getStaffName(staffId),
+    },
+    {
+      title: 'Số CCCD',
+      dataIndex: 'staffIdentityNumber',
+      key: 'staffIdentityNumber',
+      width: '10%',
+      render: (text) => text || '-',
     },
     {
       title: 'Nhóm quyền',
       dataIndex: 'roleId',
       key: 'roleId',
-      width: '12%',
+      width: '10%',
       render: (roleId) => <Tag color="blue">{getRoleName(roleId)}</Tag>,
     },
     {
       title: 'Chi nhánh mặc định',
       dataIndex: 'defaultBranchId',
       key: 'defaultBranchId',
-      width: '15%',
+      width: '13%',
       render: (branchId) => getBranchName(branchId),
     },
     {
       title: 'Phạm vi chi nhánh',
       dataIndex: 'branchScopeMode',
       key: 'branchScopeMode',
-      width: '12%',
+      width: '11%',
       render: (mode, record) => {
         if (mode === 'ALL') {
           return <Tag color="cyan">Tất cả</Tag>;
@@ -381,7 +395,7 @@ export default function UserManagementPage() {
       title: 'Khung giờ',
       dataIndex: 'loginTimeWindowId',
       key: 'loginTimeWindowId',
-      width: '12%',
+      width: '11%',
       render: (windowId) => {
         if (!windowId) return <span style={{ color: '#8c8c8c' }}>24/7 (Không giới hạn)</span>;
         return <Tag color="purple">{getTimeWindowName(windowId)}</Tag>;
@@ -400,7 +414,7 @@ export default function UserManagementPage() {
       title: 'Hoạt động',
       dataIndex: 'lockedAt',
       key: 'status',
-      width: '8%',
+      width: '5%',
       render: (lockedAt, record) => (
         <Switch
           size="small"
@@ -412,7 +426,7 @@ export default function UserManagementPage() {
     {
       title: 'Thao tác',
       key: 'action',
-      width: '10%',
+      width: '5%',
       render: (_, record) => (
         <Space size="middle">
           <Button

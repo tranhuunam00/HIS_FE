@@ -34,6 +34,7 @@ export default function UserFormModal({
       setLimitLoginTime(!!user.loginTimeWindowId);
       form.setFieldsValue({
         staffId: user.staffId || undefined,
+        identityNumber: user.staffIdentityNumber || '',
         username: user.username || '',
         email: user.email || '',
         roleId: user.roleId,
@@ -72,6 +73,7 @@ export default function UserFormModal({
     form.setFieldsValue({
       email: staff.email,
       username: compactName || staff.staffCode,
+      identityNumber: staff.identityNumber || '',
     });
   };
 
@@ -105,6 +107,7 @@ export default function UserFormModal({
       const payload = {
         staffId: values.staffId,
         username: values.username,
+        identityNumber: values.identityNumber,
         email: values.email,
         roleId: values.roleId,
         defaultBranchId,
@@ -160,7 +163,7 @@ export default function UserFormModal({
 
       <Form form={form} layout="vertical" size="small">
         <Row gutter={12}>
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
               label="Nhân viên"
               name="staffId"
@@ -186,7 +189,20 @@ export default function UserFormModal({
             </Form.Item>
           </Col>
 
-          <Col span={12}>
+          <Col span={8}>
+            <Form.Item
+              label="Số CCCD"
+              name="identityNumber"
+              rules={[
+                { required: true, message: 'Nhập số CCCD' },
+                { pattern: /^[0-9]{9,12}$/, message: 'CCCD phải gồm 9 đến 12 chữ số' },
+              ]}
+            >
+              <Input placeholder="eg .số CCCD" />
+            </Form.Item>
+          </Col>
+
+          <Col span={8}>
             <Form.Item
               label="Tên đăng nhập"
               name="username"
@@ -201,7 +217,7 @@ export default function UserFormModal({
         </Row>
 
         <Row gutter={12}>
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
               label="Mật khẩu"
               name="password"
@@ -218,7 +234,7 @@ export default function UserFormModal({
             </Form.Item>
           </Col>
 
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
               label="Email"
               name="email"
@@ -227,10 +243,8 @@ export default function UserFormModal({
               <Input placeholder="eg .email" />
             </Form.Item>
           </Col>
-        </Row>
 
-        <Row gutter={12}>
-          <Col span={12}>
+          <Col span={8}>
             <Form.Item
               label="Nhóm"
               name="roleId"
@@ -245,10 +259,12 @@ export default function UserFormModal({
               </Select>
             </Form.Item>
           </Col>
+        </Row>
 
-          <Col span={12}>
+        <Row gutter={12}>
+          <Col span={8}>
             <Form.Item
-              label="Chi nhánh"
+              label="Chi nhánh mặc định"
               name="defaultBranchId"
               rules={[{ required: true, message: 'Chọn chi nhánh mặc định' }]}
             >
@@ -295,7 +311,15 @@ export default function UserFormModal({
 
             {!allBranches && (
               <Form.Item
-                label="Phạm vi chi nhánh cụ thể"
+                label={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span>Phạm vi chi nhánh cụ thể</span>
+                    <Space size={8} style={{ fontWeight: 'normal' }}>
+                      <a onClick={() => form.setFieldsValue({ branchIds: branches.map((b) => b.id) })} style={{ fontSize: 11 }}>Chọn tất cả</a>
+                      <a onClick={() => form.setFieldsValue({ branchIds: [] })} style={{ fontSize: 11 }}>Bỏ chọn</a>
+                    </Space>
+                  </div>
+                }
                 name="branchIds"
                 rules={[{ required: true, message: 'Chọn phạm vi chi nhánh' }]}
                 style={{ marginTop: 10 }}

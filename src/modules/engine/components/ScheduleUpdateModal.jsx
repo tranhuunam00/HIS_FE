@@ -23,6 +23,7 @@ export default function ScheduleUpdateModal({
   shifts,
   branches,
   defaultEffectiveDate,
+  initialSchedules,
   onClose,
   onRefresh,
 }) {
@@ -43,13 +44,24 @@ export default function ScheduleUpdateModal({
 
   useEffect(() => {
     if (visible) {
-      // Reset configs
-      setDayConfig(
-        DAYS_OF_WEEK.reduce((acc, day) => {
-          acc[day.value] = [];
-          return acc;
-        }, {})
-      );
+      // Reset configs or set from initialSchedules
+      const emptyConfig = DAYS_OF_WEEK.reduce((acc, day) => {
+        acc[day.value] = [];
+        return acc;
+      }, {});
+
+      if (staff && initialSchedules && initialSchedules.length > 0) {
+        initialSchedules.forEach((daySched) => {
+          if (daySched.shifts && daySched.shifts.length > 0) {
+            emptyConfig[daySched.dayOfWeek] = daySched.shifts.map((s) => ({
+              shiftId: s.shiftId,
+              branchId: s.branchId,
+            }));
+          }
+        });
+      }
+      setDayConfig(emptyConfig);
+
       setQuickShift(undefined);
       setQuickBranch(undefined);
       form.resetFields();
@@ -67,7 +79,7 @@ export default function ScheduleUpdateModal({
         });
       }
     }
-  }, [visible, staff, form, defaultEffectiveDate]);
+  }, [visible, staff, form, defaultEffectiveDate, initialSchedules]);
 
   const handleApplyToAll = () => {
     if (!quickShift || !quickBranch) {
