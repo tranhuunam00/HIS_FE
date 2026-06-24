@@ -15,6 +15,8 @@ import {
 import LoginPage from './modules/auth/pages/LoginPage';
 import OrgManagementPage from './modules/org/pages/OrgManagementPage';
 import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
+import UserManagementPage from './modules/auth/pages/UserManagementPage';
+import ScheduleManagementPage from './modules/engine/pages/ScheduleManagementPage';
 import { orgService } from './services/orgService';
 import './App.css';
 
@@ -86,8 +88,7 @@ function AdminLayout() {
     {
       key: '/admin/users',
       icon: <UserOutlined />,
-      label: 'Tài khoản & Quyền',
-      disabled: true,
+      label: <Link to="/admin/users">Tài khoản & Quyền</Link>,
     },
     {
       key: '/admin/medical',
@@ -97,8 +98,7 @@ function AdminLayout() {
     {
       key: '/admin/schedules',
       icon: <CalendarOutlined />,
-      label: 'Lịch hẹn & Ca trực',
-      disabled: true,
+      label: <Link to="/admin/schedules">Lịch làm việc & Ca trực</Link>,
     },
     {
       key: '/admin/forms',
@@ -157,7 +157,9 @@ function AdminLayout() {
         <Content style={{ margin: 0, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
           <Routes>
             <Route path="org" element={<OrgManagementPage />} />
+            <Route path="users" element={<UserManagementPage />} />
             <Route path="medical" element={<MedicalCatalogPage />} />
+            <Route path="schedules" element={<ScheduleManagementPage />} />
             <Route path="*" element={<Navigate to="org" replace />} />
           </Routes>
         </Content>

@@ -82,7 +82,7 @@ src/
 ## 5. Quy Trình Mô Phỏng Nghiệp Vụ VTTECH (VTTech Emulation Guidelines)
 
 ### 5.1. Nguyên tắc đọc tài liệu và phản hồi
-*   **Bắt buộc nghiên cứu trước**: Trước khi làm bất kỳ tính năng hoặc sửa đổi nào, Agent phải đọc kỹ tài liệu nghiệp vụ tương ứng từ cổng tài liệu của VTTech (`https://vttechsolution.com/documentation`).
+*   **Bắt buộc quét tài liệu và cập nhật Requirement trước khi làm**: Trước khi bắt đầu bất kỳ tính năng, sửa đổi hoặc sửa lỗi nào, Agent phải tìm kiếm và đọc kỹ tài liệu nghiệp vụ tương ứng từ cổng tài liệu của VTTech (`https://vttechsolution.com/documentation`). Sau đó, Agent **phải ghi nhận lại các yêu cầu nghiệp vụ chi tiết** vào tệp tài liệu cache tương ứng trong thư mục `.agents/vttech-docs/` (hoặc tệp requirement của dự án) rồi mới được tiến hành lập kế hoạch và thực hiện code.
 *   **Review trước khi code**: Trình bày rõ ràng giải pháp, luồng đi và thiết kế API/Giao diện cho USER duyệt. **Không tự ý thực hiện code khi chưa có sự xác nhận.**
 *   **Hỏi ý kiến từng chặng**: Đến mỗi bước có sự lựa chọn thiết kế hoặc cấu trúc dữ liệu, phải dừng lại hỏi ý kiến USER.
 

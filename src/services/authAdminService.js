@@ -45,4 +45,29 @@ export const authAdminService = {
     const res = await api.get('/login-time-windows');
     return res.data;
   },
+
+  createLoginTimeWindow: async (data) => {
+    const res = await api.post('/login-time-windows', data);
+    return res.data;
+  },
+
+  updateLoginTimeWindow: async (id, data) => {
+    const res = await api.put(`/login-time-windows/${id}`, data);
+    return res.data;
+  },
+
+  toggleLoginTimeWindowStatus: async (id, isActive) => {
+    const res = await api.patch(`/login-time-windows/${id}/status`, { isActive });
+    return res.data;
+  },
+
+  getBranchAllowedIps: async (branchId) => {
+    const res = await api.get(`/branches/${branchId}/allowed-ips`);
+    return res.data;
+  },
+
+  updateBranchAllowedIps: async (branchId, ips) => {
+    const res = await api.put(`/branches/${branchId}/allowed-ips`, ips);
+    return res.data;
+  },
 };
