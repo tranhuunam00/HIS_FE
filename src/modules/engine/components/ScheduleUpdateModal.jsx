@@ -22,6 +22,7 @@ export default function ScheduleUpdateModal({
   staffList,
   shifts,
   branches,
+  defaultEffectiveDate,
   onClose,
   onRefresh,
 }) {
@@ -53,18 +54,20 @@ export default function ScheduleUpdateModal({
       setQuickBranch(undefined);
       form.resetFields();
 
+      const initialEffectiveDate = defaultEffectiveDate || dayjs().add(1, 'week').startOf('week').add(1, 'day');
+
       if (staff) {
         form.setFieldsValue({
           staffIds: [staff.id],
-          effectiveDate: dayjs().add(1, 'week').startOf('week').add(1, 'day'), // next Monday
+          effectiveDate: initialEffectiveDate,
         });
       } else {
         form.setFieldsValue({
-          effectiveDate: dayjs().add(1, 'week').startOf('week').add(1, 'day'), // next Monday
+          effectiveDate: initialEffectiveDate,
         });
       }
     }
-  }, [visible, staff, form]);
+  }, [visible, staff, form, defaultEffectiveDate]);
 
   const handleApplyToAll = () => {
     if (!quickShift || !quickBranch) {

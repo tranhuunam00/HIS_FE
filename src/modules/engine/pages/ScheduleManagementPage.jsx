@@ -71,6 +71,19 @@ export default function ScheduleManagementPage() {
 
   useEffect(() => {
     fetchMetadata();
+
+    const handleBranchChanged = () => {
+      const storedBranch = localStorage.getItem('activeBranchId');
+      if (storedBranch) {
+        setSelectedBranchId(storedBranch);
+        fetchDepartments(storedBranch);
+      }
+    };
+
+    window.addEventListener('branchChanged', handleBranchChanged);
+    return () => {
+      window.removeEventListener('branchChanged', handleBranchChanged);
+    };
   }, []);
 
   const fetchMetadata = async () => {
@@ -542,6 +555,7 @@ export default function ScheduleManagementPage() {
         staffList={staffList}
         shifts={shifts}
         branches={branches}
+        defaultEffectiveDate={selectedWeek.startOf('week').add(1, 'day')}
         onClose={() => setScheduleUpdateVisible(false)}
         onRefresh={fetchSchedules}
       />

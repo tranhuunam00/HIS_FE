@@ -22,9 +22,15 @@ export const scheduleService = {
   },
 
   getSchedules: async (params) => {
-    // Translate array parameters to format supported by backend (staffIds[]=uuid-1&staffIds[]=uuid-2)
-    // We can use URLSearchParams or pass it as is to axios (which handles array query params)
-    const res = await api.get('/schedules', { params });
+    const query = new URLSearchParams();
+    if (params.staffIds) {
+      const ids = Array.isArray(params.staffIds) ? params.staffIds : [params.staffIds];
+      ids.forEach((id) => query.append('staffIds', id));
+    }
+    if (params.startDate) query.append('startDate', params.startDate);
+    if (params.endDate) query.append('endDate', params.endDate);
+
+    const res = await api.get(`/schedules?${query.toString()}`);
     return res.data;
   },
 

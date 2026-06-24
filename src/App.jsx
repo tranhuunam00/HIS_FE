@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Avatar, Space, Button, Select, theme, ConfigProvider } from 'antd';
+import { Layout, Menu, Dropdown, Avatar, Space, Button, Select, ConfigProvider, Modal, Form, Input, Divider, Typography, message } from 'antd';
 import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -18,6 +18,7 @@ import MedicalCatalogPage from './modules/medical/pages/MedicalCatalogPage';
 import UserManagementPage from './modules/auth/pages/UserManagementPage';
 import ScheduleManagementPage from './modules/engine/pages/ScheduleManagementPage';
 import { orgService } from './services/orgService';
+import { authAdminService } from './services/authAdminService';
 import './App.css';
 
 const { Header, Sider, Content } = Layout;
@@ -26,14 +27,24 @@ function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [branches, setBranches] = useState([]);
   const [activeBranchId, setActiveBranchId] = useState(localStorage.getItem('activeBranchId') || '');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+  const [profileForm] = Form.useForm();
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
+
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    const fetchBranches = async () => {
+    const fetchBranchesAndUser = async () => {
       try {
-        const list = await orgService.getBranches();
+        const [list, user] = await Promise.all([
+          orgService.getBranches(),
+          authAdminService.getCurrentUser()
+        ]);
         setBranches(list);
+        setCurrentUser(user);
+        
         if (list.length > 0) {
           const currentStored = localStorage.getItem('activeBranchId');
           const exists = list.some(b => b.id === currentStored);
@@ -48,10 +59,10 @@ function AdminLayout() {
           }
         }
       } catch (err) {
-        console.error('Lỗi tải chi nhánh ở Header:', err);
+        console.error('Lỗi tải dữ liệu Header:', err);
       }
     };
-    fetchBranches();
+    fetchBranchesAndUser();
   }, []);
 
   const handleBranchChange = (value) => {
@@ -67,17 +78,30 @@ function AdminLayout() {
     navigate('/login');
   };
 
-  const userMenu = (
-    <Menu size="small">
-      <Menu.Item key="profile" icon={<UserOutlined />}>
-        Hồ sơ cá nhân
-      </Menu.Item>
-      <Menu.Divider />
-      <Menu.Item key="logout" icon={<LogoutOutlined />} onClick={handleLogout} danger>
-        Đăng xuất
-      </Menu.Item>
-    </Menu>
-  );
+  const handleMenuClick = ({ key }) => {
+    if (key === 'logout') {
+      handleLogout();
+    } else if (key === 'profile') {
+      setProfileModalVisible(true);
+    }
+  };
+
+  const userMenuItems = [
+    {
+      key: 'profile',
+      label: 'Hồ sơ cá nhân',
+      icon: <UserOutlined />,
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'logout',
+      label: 'Đăng xuất',
+      icon: <LogoutOutlined />,
+      danger: true,
+    },
+  ];
 
   const menuItems = [
     {
@@ -147,10 +171,12 @@ function AdminLayout() {
               </Select>
             )}
           </Space>
-          <Dropdown overlay={userMenu} placement="bottomRight" trigger={['click']}>
+          <Dropdown menu={{ items: userMenuItems, onClick: handleMenuClick }} placement="bottomRight" trigger={['click']}>
             <Space style={{ cursor: 'pointer' }}>
               <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#52c41a' }} />
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#262626' }}>BS. Trần Hữu Nam</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color: '#262626' }}>
+                {currentUser?.staffName || currentUser?.username || 'Đang tải...'}
+              </span>
             </Space>
           </Dropdown>
         </Header>
@@ -164,6 +190,97 @@ function AdminLayout() {
           </Routes>
         </Content>
       </Layout>
+
+      <Modal
+        title="Hồ sơ cá nhân & Đổi mật khẩu"
+        open={profileModalVisible}
+        onCancel={() => {
+          setProfileModalVisible(false);
+          profileForm.resetFields();
+        }}
+        footer={null}
+        width={400}
+        size="small"
+      >
+        {currentUser && (
+          <Form
+            form={profileForm}
+            layout="vertical"
+            size="small"
+            onFinish={async (values) => {
+              if (values.newPassword !== values.confirmPassword) {
+                message.error('Mật khẩu xác nhận không khớp');
+                return;
+              }
+              try {
+                setProfileSubmitting(true);
+                await authAdminService.resetPassword(currentUser.id, values.newPassword);
+                message.success('Đổi mật khẩu thành công!');
+                setProfileModalVisible(false);
+                profileForm.resetFields();
+              } catch (err) {
+                console.error(err);
+                message.error(err.response?.data?.message || 'Đổi mật khẩu thất bại');
+              } finally {
+                setProfileSubmitting(false);
+              }
+            }}
+          >
+            <Form.Item label="Tên nhân sự">
+              <Input value={currentUser.staffName || 'N/A'} disabled />
+            </Form.Item>
+            <Form.Item label="Tài khoản (Username)">
+              <Input value={currentUser.username} disabled />
+            </Form.Item>
+            <Form.Item label="Email">
+              <Input value={currentUser.email} disabled />
+            </Form.Item>
+            <Form.Item label="Vai trò">
+              <Input value={currentUser.roleName || 'N/A'} disabled />
+            </Form.Item>
+            
+            <Divider style={{ margin: '12px 0' }} />
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+              Nhập mật khẩu mới bên dưới nếu muốn thay đổi mật khẩu:
+            </Typography.Text>
+
+            <Form.Item
+              name="newPassword"
+              label="Mật khẩu mới"
+              rules={[
+                { required: true, message: 'Vui lòng nhập mật khẩu mới' },
+                { min: 6, message: 'Mật khẩu phải từ 6 ký tự trở lên' }
+              ]}
+            >
+              <Input.Password placeholder="Nhập mật khẩu mới" />
+            </Form.Item>
+
+            <Form.Item
+              name="confirmPassword"
+              label="Xác nhận mật khẩu mới"
+              rules={[
+                { required: true, message: 'Vui lòng xác nhận mật khẩu mới' }
+              ]}
+            >
+              <Input.Password placeholder="Xác nhận mật khẩu mới" />
+            </Form.Item>
+
+            <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => {
+                  setProfileModalVisible(false);
+                  profileForm.resetFields();
+                }}>
+                  Hủy
+                </Button>
+                <Button type="primary" htmlType="submit" loading={profileSubmitting}>
+                  Lưu thay đổi
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
     </Layout>
   );
 }
