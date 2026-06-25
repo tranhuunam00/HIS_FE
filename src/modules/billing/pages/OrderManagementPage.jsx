@@ -222,12 +222,16 @@ export default function OrderManagementPage() {
   const handleUpdateItemStatus = async (itemId, newStatus) => {
     if (!order) return;
     try {
-      const updatedOrder = await billingService.updateOrderItem(order.id, itemId, { status: newStatus });
+      const performedById = currentUser?.staff?.id;
+      const updatedOrder = await billingService.updateOrderItem(order.id, itemId, { 
+        status: newStatus, 
+        performedById 
+      });
       setOrder(updatedOrder);
-      message.success('Cập nhật trạng thái thành công');
+      message.success('Cap nhat trang thai thanh cong');
     } catch (err) {
       console.error(err);
-      message.error('Không thể cập nhật trạng thái');
+      message.error('Khong the cap nhat trang thai');
     }
   };
 
@@ -246,13 +250,14 @@ export default function OrderManagementPage() {
   const handleAcceptPatient = async () => {
     if (!selectedVisit) return;
     try {
-      const updatedVisit = await visitService.acceptPatient(selectedVisit.id);
+      const doctorId = currentUser?.staff?.id;
+      const updatedVisit = await visitService.acceptPatient(selectedVisit.id, doctorId);
       setSelectedVisit(updatedVisit);
-      message.success('Tiếp nhận bệnh nhân thành công!');
+      message.success('Tiep nhan benh nhan thanh cong!');
       fetchVisits();
     } catch (err) {
       console.error(err);
-      message.error(err.response?.data?.message || 'Không thể tiếp nhận bệnh nhân');
+      message.error(err.response?.data?.message || 'Khong the tiep nhan benh nhan');
     }
   };
 
@@ -319,13 +324,15 @@ export default function OrderManagementPage() {
   const handleSaveResult = async (itemId, newStatus, newResultStatus, newResultNotes) => {
     if (!order) return;
     try {
+      const performedById = currentUser?.staff?.id;
       const updatedOrder = await billingService.updateOrderItem(order.id, itemId, {
         status: newStatus,
         resultStatus: newResultStatus,
         resultNotes: newResultNotes,
+        performedById
       });
       setOrder(updatedOrder);
-      message.success('Cập nhật kết quả dịch vụ thành công!');
+      message.success('Cap nhat ket qua dich vu thanh cong!');
       fetchVisits();
       if (selectedVisit) {
         const updatedVisit = await visitService.getVisitById(selectedVisit.id);
@@ -333,7 +340,7 @@ export default function OrderManagementPage() {
       }
     } catch (err) {
       console.error(err);
-      message.error(err.response?.data?.message || 'Không thể cập nhật kết quả');
+      message.error(err.response?.data?.message || 'Khong the cap nhat ket qua');
     }
   };
 
@@ -353,7 +360,6 @@ export default function OrderManagementPage() {
 
   const filteredVisits = visits.filter(v => {
     if (currentUser && ['DOCTOR', 'NURSE'].includes(currentUser.roleName)) {
-      if (activeAttendances.length === 0) return false;
       const doctorRoomIds = currentUser.staff?.assignments?.map(a => a.roomId).filter(Boolean) || [];
       if (!doctorRoomIds.includes(v.currentRoomId)) return false;
     }
@@ -375,9 +381,14 @@ export default function OrderManagementPage() {
           <div>
             <Tag color="cyan" style={{ fontSize: 10 }}>{record.service?.code}</Tag>
             <Tag color="blue" style={{ fontSize: 10 }}>{record.service?.category}</Tag>
+            {record.performedBy?.fullName && (
+              <Tag color="default" style={{ fontSize: 10, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
+                BS: {record.performedBy.fullName}
+              </Tag>
+            )}
             {record.resultNotes && (
               <div style={{ marginTop: 4, padding: '4px 8px', background: '#f0fdf4', borderRadius: 4, borderLeft: '3px solid #10b981', fontSize: 11 }}>
-                <strong>Kết quả:</strong> {record.resultNotes}
+                <strong>Ket qua:</strong> {record.resultNotes}
               </div>
             )}
           </div>
@@ -525,8 +536,8 @@ export default function OrderManagementPage() {
           >
             {currentUser && ['DOCTOR', 'NURSE'].includes(currentUser.roleName) && activeAttendances.length === 0 && (
               <Alert
-                message="Chưa check-in ca trực"
-                description="Bạn cần điểm danh check-in ca trực hôm nay để xem hàng đợi khám."
+                message="Chua check-in ca truc"
+                description="Ban can diem danh check-in ca truc hom nay de thuc hien tiep nhan benh."
                 type="warning"
                 showIcon
                 style={{ marginBottom: 12 }}
@@ -619,24 +630,30 @@ export default function OrderManagementPage() {
                   </Col>
                   <Col span={7} style={{ display: 'flex', flexDirection: 'column', gap: 6, borderLeft: '1px solid #d9d9d9', paddingLeft: 16 }}>
                     {canAccept && (
-                      <Button
-                        type="primary"
-                        icon={<PlayCircleOutlined />}
-                        onClick={handleAcceptPatient}
-                        style={{ width: '100%' }}
-                      >
-                        Tiếp nhận
-                      </Button>
+                      <Tooltip title={activeAttendances.length === 0 ? "Ban can diem danh check-in ca truc hom nay de tiep nhan kham" : ""}>
+                        <Button
+                          type="primary"
+                          icon={<PlayCircleOutlined />}
+                          onClick={handleAcceptPatient}
+                          disabled={activeAttendances.length === 0}
+                          style={{ width: '100%' }}
+                        >
+                          Tiep nhan
+                        </Button>
+                      </Tooltip>
                     )}
                     {canComplete && (
-                      <Button
-                        type="primary"
-                        icon={<CheckCircleOutlined />}
-                        onClick={handleCompletePatient}
-                        style={{ width: '100%', backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-                      >
-                        Hoàn thành
-                      </Button>
+                      <Tooltip title={activeAttendances.length === 0 ? "Ban can diem danh check-in ca truc hom nay de hoan thanh ca kham" : ""}>
+                        <Button
+                          type="primary"
+                          icon={<CheckCircleOutlined />}
+                          onClick={handleCompletePatient}
+                          disabled={activeAttendances.length === 0}
+                          style={{ width: '100%', backgroundColor: activeAttendances.length === 0 ? undefined : '#52c41a', borderColor: activeAttendances.length === 0 ? undefined : '#52c41a' }}
+                        >
+                          Hoan thanh
+                        </Button>
+                      </Tooltip>
                     )}
                     <Button
                       type="default"

@@ -31,8 +31,8 @@ export const visitService = {
     return res.data;
   },
 
-  acceptPatient: async (id) => {
-    const res = await api.patch(`/visits/${id}/accept`);
+  acceptPatient: async (id, doctorId) => {
+    const res = await api.patch(`/visits/${id}/accept`, { doctorId });
     return res.data;
   },
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Button, Tag, Space, Modal, Form, Select, Input, InputNumber, Typography, message, Tooltip, Progress, Badge, Divider } from 'antd';
-import { SyncOutlined, ArrowRightOutlined, HeartOutlined, HomeOutlined, CheckCircleOutlined, DollarOutlined, ExperimentOutlined, FileTextOutlined, WarningOutlined, CompassOutlined } from '@ant-design/icons';
+import { SyncOutlined, ArrowRightOutlined, HeartOutlined, HomeOutlined, CheckCircleOutlined, DollarOutlined, ExperimentOutlined, FileTextOutlined, WarningOutlined, CompassOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
 import { visitService } from '../../../services/visitService';
 import { roomService } from '../../../services/roomService';
 import { staffService } from '../../../services/staffService';
@@ -304,227 +304,299 @@ export default function QueueDashboardPage() {
     const completedCount = orderItems.filter(i => i.status === 'COMPLETED').length;
     const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+    const borderColors = {
+      blue: '#3b82f6',
+      green: '#10b981',
+      success: '#10b981',
+      orange: '#f59e0b',
+      purple: '#8b5cf6',
+      cyan: '#06b6d4',
+      geekblue: '#2f54eb',
+      magenta: '#eb2f96',
+      gold: '#d97706',
+    };
+    const cardBorderColor = borderColors[detailed.color] || '#9ca3af';
+
+    const getPriorityStyle = (level) => {
+      if (level === 'EMERGENCY') {
+        return { color: '#ef4444', label: 'Cap cuu', bg: '#fef2f2', border: '#fca5a5' };
+      } else if (level === 'PRIORITY') {
+        return { color: '#f59e0b', label: 'Uu tien', bg: '#fffbeb', border: '#fcd34d' };
+      }
+      return { color: '#10b981', label: 'Thuong', bg: '#f0fdf4', border: '#bbf7d0' };
+    };
+    const prio = getPriorityStyle(visit.priorityLevel);
+
+    const getWaitTimeText = (createdAt) => {
+      if (!createdAt) return 'Vua xong';
+      const diffMs = new Date() - new Date(createdAt);
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Vua xong';
+      if (diffMins < 60) return `${diffMins} phut`;
+      const diffHours = Math.floor(diffMins / 60);
+      return `${diffHours} gio ${diffMins % 60} phut`;
+    };
+    const waitTime = getWaitTimeText(visit.createdAt);
+
     return (
       <Card
         key={visit.id}
         size="small"
         style={{
-          marginBottom: '12px',
+          marginBottom: '10px',
           borderRadius: '10px',
-          borderLeft: `4px solid ${
-            detailed.color === 'blue' ? '#3b82f6' :
-            detailed.color === 'green' ? '#10b981' :
-            detailed.color === 'success' ? '#10b981' :
-            detailed.color === 'orange' ? '#f59e0b' :
-            detailed.color === 'purple' ? '#8b5cf6' :
-            detailed.color === 'cyan' ? '#06b6d4' :
-            detailed.color === 'geekblue' ? '#2f54eb' :
-            detailed.color === 'magenta' ? '#eb2f96' :
-            detailed.color === 'gold' ? '#d97706' : '#9ca3af'
-          }`,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          borderLeft: `4px solid ${cardBorderColor}`,
+          boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
           background: '#fff',
-          border: '1px solid #f0f0f0',
+          border: '1px solid #edf2f7',
         }}
-        styles={{ body: { padding: '12px' } }}
+        styles={{ body: { padding: '10px' } }}
+        className="queue-card-hover"
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <Tag color={detailed.color} style={{ fontWeight: 'bold', fontSize: '10px', borderRadius: 4, margin: 0 }}>
-            {detailed.label}
-          </Tag>
-          <span style={{ fontSize: '11px', fontWeight: '500', color: '#8c8c8c' }}>{visit.visitCode}</span>
-        </div>
-
-        <div style={{ margin: '8px 0 4px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text strong style={{ fontSize: '14px', color: '#1f2937' }}>
+        {/* Patient Name and STT badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexWrap: 'nowrap', overflow: 'hidden' }}>
+          <span style={{
+            fontSize: '10px',
+            fontWeight: '700',
+            color: prio.color,
+            backgroundColor: prio.bg,
+            padding: '1px 5px',
+            borderRadius: '4px',
+            border: `1px solid ${prio.border}`,
+            whiteSpace: 'nowrap'
+          }}>
+            STT {visit.queueNumber}
+          </span>
+          <Text strong style={{ fontSize: '13px', color: '#0f172a', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
             {visit.patient?.fullName}
           </Text>
-          <Badge count={`STT ${visit.queueNumber}`} style={{ backgroundColor: '#e6f7ff', color: '#1890ff', fontWeight: 'bold', fontSize: '11px' }} />
         </div>
 
-        <div style={{ fontSize: '12px', color: '#4b5563', lineHeight: 1.6, marginBottom: 8 }}>
-          <div><Text type="secondary">Lý do:</Text> {visit.reason || 'Khám bệnh'}</div>
-          <div>
-            <Text type="secondary">Phòng:</Text> {visit.currentRoom?.name || <span style={{ color: '#bfbfbf' }}>Chưa điều phối</span>}
-            {visit.currentDoctor?.fullName && <span style={{ color: '#8c8c8c' }}> (BS. {visit.currentDoctor.fullName})</span>}
+        {/* Tag, visit code, and wait time */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Tag color={detailed.color} style={{ fontWeight: '600', fontSize: '9px', borderRadius: '3px', textTransform: 'uppercase', border: 'none', padding: '0 4px', margin: 0 }}>
+              {detailed.label}
+            </Tag>
+            <span style={{ fontSize: '9px', color: '#94a3b8', fontStyle: 'italic' }}>
+              #{visit.visitCode?.slice(-4) || ''}
+            </span>
+          </div>
+          <span style={{ fontSize: '10px', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+            <ClockCircleOutlined style={{ fontSize: '9px' }} /> {waitTime}
+          </span>
+        </div>
+
+        {/* Reason, Room and Doctor */}
+        <div style={{ fontSize: '11px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '6px' }}>
+          <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <span style={{ color: '#94a3b8' }}>Ly do:</span> {visit.reason || 'Kham tong quan'}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+              <HomeOutlined style={{ color: '#94a3b8', fontSize: '11px' }} />
+              <strong style={{ color: '#334155' }}>{visit.currentRoom?.name || 'Chua dieu phoi'}</strong>
+            </span>
+            {visit.currentDoctor?.fullName && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }}>
+                <UserOutlined style={{ color: '#94a3b8', fontSize: '11px' }} />
+                BS. <strong style={{ color: '#334155' }}>{visit.currentDoctor.nickname || visit.currentDoctor.fullName}</strong>
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Progress Bar for Services */}
+        {/* Service progress */}
         {totalCount > 0 && (
-          <div style={{ margin: '10px 0', padding: '8px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #edf2f7' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: 4, fontWeight: 500 }}>
-              <span style={{ color: '#64748b' }}>Tiến độ cận lâm sàng:</span>
-              <span style={{ color: '#2f54eb' }}>{completedCount}/{totalCount} dịch vụ</span>
+          <div style={{ marginBottom: '6px', background: '#f0f9ff', padding: '4px 6px', borderRadius: '4px', border: '1px solid #e0f2fe' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', fontWeight: '600', color: '#0284c7', marginBottom: '2px' }}>
+              <span>Tien do CLS: {completedCount}/{totalCount} DV</span>
+              <span>{progressPercent}%</span>
             </div>
-            <Progress percent={progressPercent} size="small" strokeColor="#52c41a" status={progressPercent === 100 ? "success" : "active"} />
+            <Progress percent={progressPercent} size="small" showInfo={false} strokeColor="#0284c7" trailColor="#e0f2fe" strokeWidth={4} style={{ margin: 0 }} />
           </div>
         )}
 
-        {/* Vital Signs summary data */}
-        {(visit.pulse || visit.bloodPressure) ? (
-          <div style={{ marginTop: '8px', fontSize: '11px', background: '#f0fdf4', padding: '6px 8px', borderRadius: '6px', border: '1px solid #dcfce7', display: 'flex', flexWrap: 'wrap', gap: '10px', color: '#166534' }}>
-            {visit.pulse && <span>Mạch: <strong>{visit.pulse} bpm</strong></span>}
-            {visit.bloodPressure && <span>HA: <strong>{visit.bloodPressure}</strong></span>}
-            {visit.temperature && <span>Nhiệt độ: <strong>{visit.temperature}°C</strong></span>}
+        {/* Vital signs */}
+        {(visit.pulse || visit.bloodPressure || visit.temperature) ? (
+          <div style={{ marginBottom: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+            {visit.pulse && (
+              <span style={{ fontSize: '9px', fontWeight: '500', background: '#fef2f2', color: '#dc2626', padding: '1px 4px', borderRadius: '3px', border: '1px solid #fee2e2' }}>
+                ❤️ {visit.pulse}
+              </span>
+            )}
+            {visit.bloodPressure && (
+              <span style={{ fontSize: '9px', fontWeight: '500', background: '#f0f9ff', color: '#0284c7', padding: '1px 4px', borderRadius: '3px', border: '1px solid #e0f2fe' }}>
+                🩸 {visit.bloodPressure}
+              </span>
+            )}
+            {visit.temperature && (
+              <span style={{ fontSize: '9px', fontWeight: '500', background: '#fffbeb', color: '#d97706', padding: '1px 4px', borderRadius: '3px', border: '1px solid #fef3c7' }}>
+                🌡️ {visit.temperature}°
+              </span>
+            )}
           </div>
         ) : null}
 
-        <div style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <CompassOutlined /> {detailed.description}
-        </div>
-
-        <Divider style={{ margin: '8px 0' }} />
-
-        {/* Action Buttons based on status */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            {visit.status === 'ALL_SERVICES_DONE' && (
-              <Button
-                type="primary"
-                size="small"
-                icon={<CheckCircleOutlined />}
-                onClick={() => handleConfirmResultsWait(visit.id)}
-                style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontSize: '11px', borderRadius: 4 }}
-              >
-                Xác nhận chờ kết quả
-              </Button>
-            )}
-          </div>
-          <Space size="small">
+        {/* Action buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #f1f5f9' }}>
+          {visit.status === 'ALL_SERVICES_DONE' ? (
+            <Button
+              type="primary"
+              size="small"
+              icon={<CheckCircleOutlined />}
+              onClick={() => handleConfirmResultsWait(visit.id)}
+              style={{ backgroundColor: '#10b981', borderColor: '#10b981', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
+            >
+              Cho KQ
+            </Button>
+          ) : <div />}
+          <div style={{ display: 'flex', gap: '4px' }}>
             <Button
               size="small"
               icon={<HeartOutlined />}
               onClick={() => handleOpenVitals(visit)}
-              style={{ color: '#ef4444', borderColor: '#fca5a5', fontSize: '11px', borderRadius: 4 }}
+              style={{ color: '#ef4444', borderColor: '#fca5a5', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
             >
-              Sinh hiệu
+              Sinh hieu
             </Button>
             <Button
               size="small"
-              type="dashed"
+              type="primary"
+              ghost
               icon={<ArrowRightOutlined />}
               onClick={() => handleOpenTransfer(visit)}
-              style={{ color: '#059669', borderColor: '#a7f3d0', fontSize: '11px', borderRadius: 4 }}
+              style={{ color: '#059669', borderColor: '#a7f3d0', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
             >
-              Điều phối
+              Dieu phoi
             </Button>
-          </Space>
+          </div>
         </div>
       </Card>
     );
   };
 
   return (
-    <div style={{ padding: '24px', background: '#f8fafc', minHeight: 'calc(100vh - 48px)' }}>
+    <div style={{ padding: '12px 16px', background: '#f8fafc', minHeight: 'calc(100vh - 48px)' }}>
+      <style>{`
+        .queue-card-hover {
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        .queue-card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 10px rgba(0,0,0,0.05) !important;
+          border-color: #cbd5e1 !important;
+        }
+      `}</style>
+      
       {/* Page Header */}
-      <div style={{ maxWidth: 1600, margin: '0 auto 24px auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ width: '100%', maxWidth: '100%', margin: '0 auto 16px auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
         <div>
-          <Title level={3} style={{ margin: 0, fontWeight: 'bold' }}>
-            <CompassOutlined style={{ marginRight: 8, color: '#52c41a' }} />
-            Bảng điều phối hàng đợi khám bệnh (Queue Dashboard)
+          <Title level={3} style={{ margin: 0, fontWeight: 'bold', color: '#0f172a' }}>
+            <CompassOutlined style={{ marginRight: 8, color: '#059669' }} />
+            Bang dieu phoi hang doi kham benh (Queue Dashboard)
           </Title>
-          <Paragraph type="secondary" style={{ margin: '4px 0 0 0' }}>
-            Bảng Kanban 5 cột thời gian thực phân luồng di chuyển của bệnh nhân: Đón tiếp &rarr; Khám lâm sàng &rarr; Thanh toán &rarr; Làm CLS &rarr; Kết luận.
+          <Paragraph type="secondary" style={{ margin: '4px 0 0 0', color: '#64748b' }}>
+            Bieu do kanban 5 cot dieu phoi luot kham: Don tiep &rarr; Kham lam sang &rarr; Thanh toan &rarr; Lam CLS &rarr; Ket luan.
           </Paragraph>
         </div>
         <Button
           type="primary"
           icon={<SyncOutlined spin={loading} />}
           onClick={fetchVisits}
-          style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', borderRadius: 6, fontWeight: 'bold' }}
+          style={{ backgroundColor: '#059669', borderColor: '#059669', borderRadius: 8, fontWeight: 'bold', height: '36px', boxShadow: '0 4px 6px -1px rgba(5, 150, 105, 0.2)' }}
         >
-          Làm mới bảng
+          Lam moi bang
         </Button>
       </div>
 
       {/* Kanban Layout - 5 Columns */}
-      <Row gutter={16} style={{ maxWidth: 1600, margin: '0 auto', alignItems: 'stretch' }}>
+      <div style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '100%', margin: '0 auto', alignItems: 'stretch' }}>
         {/* Column 1: Reception & Vitals */}
-        <Col xs={24} sm={12} lg={4} style={{ display: 'flex', flexDirection: 'column', width: '20%' }}>
-          <div style={{ background: '#f1f5f9', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', flex: 1, borderTop: '4px solid #64748b' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text strong style={{ fontSize: 13, color: '#475569' }}>1. ĐÓN TIẾP & SINH HIỆU</Text>
-              <Badge count={admittedVisits.length} style={{ backgroundColor: '#64748b' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0px', minWidth: 0 }}>
+          <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', border: '1px solid #e2e8f0', borderTop: '4px solid #64748b', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
+              <Text strong style={{ fontSize: '11px', color: '#475569', letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>1. DON TIEP & SINH HIEU</Text>
+              <Badge count={admittedVisits.length} style={{ backgroundColor: '#64748b', fontWeight: 'bold', fontSize: '10px' }} />
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '680px', paddingRight: 4 }}>
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '720px', paddingRight: '2px' }}>
               {admittedVisits.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '12px' }}>Trống</div>
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '30px 0', fontSize: '11px', background: 'rgba(241, 245, 249, 0.5)', borderRadius: '6px', border: '1px dashed #cbd5e1' }}>Trong</div>
               ) : (
                 admittedVisits.map(renderVisitCard)
               )}
             </div>
           </div>
-        </Col>
+        </div>
 
         {/* Column 2: Clinical Consultation */}
-        <Col xs={24} sm={12} lg={4} style={{ display: 'flex', flexDirection: 'column', width: '20%' }}>
-          <div style={{ background: '#e0f2fe', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', flex: 1, borderTop: '4px solid #0284c7' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text strong style={{ fontSize: 13, color: '#0369a1' }}>2. KHÁM LÂM SÀNG</Text>
-              <Badge count={clinicalVisits.length} style={{ backgroundColor: '#0284c7' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0px', minWidth: 0 }}>
+          <div style={{ background: '#f0f9ff', borderRadius: '12px', padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', border: '1px solid #e0f2fe', borderTop: '4px solid #0284c7', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #e0f2fe', paddingBottom: '6px' }}>
+              <Text strong style={{ fontSize: '11px', color: '#0369a1', letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>2. KHAM LAM SANG</Text>
+              <Badge count={clinicalVisits.length} style={{ backgroundColor: '#0284c7', fontWeight: 'bold', fontSize: '10px' }} />
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '680px', paddingRight: 4 }}>
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '720px', paddingRight: '2px' }}>
               {clinicalVisits.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '12px' }}>Trống</div>
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '30px 0', fontSize: '11px', background: 'rgba(224, 242, 254, 0.5)', borderRadius: '6px', border: '1px dashed #bae6fd' }}>Trong</div>
               ) : (
                 clinicalVisits.map(renderVisitCard)
               )}
             </div>
           </div>
-        </Col>
+        </div>
 
         {/* Column 3: Billing & Payment */}
-        <Col xs={24} sm={12} lg={4} style={{ display: 'flex', flexDirection: 'column', width: '20%' }}>
-          <div style={{ background: '#fef3c7', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', flex: 1, borderTop: '4px solid #d97706' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text strong style={{ fontSize: 13, color: '#b45309' }}>3. THU NGÂN & THANH TOÁN</Text>
-              <Badge count={paymentVisits.length} style={{ backgroundColor: '#d97706' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0px', minWidth: 0 }}>
+          <div style={{ background: '#fffbeb', borderRadius: '12px', padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', border: '1px solid #fef3c7', borderTop: '4px solid #d97706', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #fef3c7', paddingBottom: '6px' }}>
+              <Text strong style={{ fontSize: '11px', color: '#b45309', letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>3. THU NGAN & THANH TOAN</Text>
+              <Badge count={paymentVisits.length} style={{ backgroundColor: '#d97706', fontWeight: 'bold', fontSize: '10px' }} />
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '680px', paddingRight: 4 }}>
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '720px', paddingRight: '2px' }}>
               {paymentVisits.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '12px' }}>Trống</div>
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '30px 0', fontSize: '11px', background: 'rgba(254, 243, 199, 0.5)', borderRadius: '6px', border: '1px dashed #fde68a' }}>Trong</div>
               ) : (
                 paymentVisits.map(renderVisitCard)
               )}
             </div>
           </div>
-        </Col>
+        </div>
 
         {/* Column 4: Lab Services */}
-        <Col xs={24} sm={12} lg={4} style={{ display: 'flex', flexDirection: 'column', width: '20%' }}>
-          <div style={{ background: '#fdf2f8', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', flex: 1, borderTop: '4px solid #db2777' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text strong style={{ fontSize: 13, color: '#be185d' }}>4. THỰC HIỆN CẬN LÂM SÀNG</Text>
-              <Badge count={serviceVisits.length} style={{ backgroundColor: '#db2777' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0px', minWidth: 0 }}>
+          <div style={{ background: '#fdf2f8', borderRadius: '12px', padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', border: '1px solid #fbcfe8', borderTop: '4px solid #db2777', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #fbcfe8', paddingBottom: '6px' }}>
+              <Text strong style={{ fontSize: '11px', color: '#be185d', letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>4. THUC HIEN CAN LAM SANG</Text>
+              <Badge count={serviceVisits.length} style={{ backgroundColor: '#db2777', fontWeight: 'bold', fontSize: '10px' }} />
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '680px', paddingRight: 4 }}>
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '720px', paddingRight: '2px' }}>
               {serviceVisits.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '12px' }}>Trống</div>
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '30px 0', fontSize: '11px', background: 'rgba(253, 242, 248, 0.5)', borderRadius: '6px', border: '1px dashed #fbcfe8' }}>Trong</div>
               ) : (
                 serviceVisits.map(renderVisitCard)
               )}
             </div>
           </div>
-        </Col>
+        </div>
 
         {/* Column 5: Results Wait & Conclusion */}
-        <Col xs={24} sm={12} lg={4} style={{ display: 'flex', flexDirection: 'column', width: '20%' }}>
-          <div style={{ background: '#dcfce7', borderRadius: 12, padding: 12, display: 'flex', flexDirection: 'column', flex: 1, borderTop: '4px solid #16a34a' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text strong style={{ fontSize: 13, color: '#15803d' }}>5. KẾT QUẢ & KẾT LUẬN</Text>
-              <Badge count={conclusionVisits.length} style={{ backgroundColor: '#16a34a' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: '1 1 0px', minWidth: 0 }}>
+          <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, boxShadow: '0 4px 20px rgba(0,0,0,0.02)', border: '1px solid #bbf7d0', borderTop: '4px solid #16a34a', minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: '1px solid #bbf7d0', paddingBottom: '6px' }}>
+              <Text strong style={{ fontSize: '11px', color: '#15803d', letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>5. KET QUA & KET LUAN</Text>
+              <Badge count={conclusionVisits.length} style={{ backgroundColor: '#16a34a', fontWeight: 'bold', fontSize: '10px' }} />
             </div>
-            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '680px', paddingRight: 4 }}>
+            <div style={{ flex: 1, overflowY: 'auto', maxHeight: '720px', paddingRight: '2px' }}>
               {conclusionVisits.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '40px 0', fontSize: '12px' }}>Trống</div>
+                <div style={{ textAlign: 'center', color: '#94a3b8', padding: '30px 0', fontSize: '11px', background: 'rgba(240, 253, 244, 0.5)', borderRadius: '6px', border: '1px dashed #bbf7d0' }}>Trong</div>
               ) : (
                 conclusionVisits.map(renderVisitCard)
               )}
             </div>
           </div>
-        </Col>
-      </Row>
+        </div>
+      </div>
 
       {/* Transfer Room Modal */}
       <Modal

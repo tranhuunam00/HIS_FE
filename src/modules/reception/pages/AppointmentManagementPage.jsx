@@ -41,6 +41,9 @@ export default function AppointmentManagementPage() {
   const [doctors, setDoctors] = useState([]);
   const [services, setServices] = useState([]);
 
+  const [isExistingPatient, setIsExistingPatient] = useState(null);
+  const [foundPatientId, setFoundPatientId] = useState(null);
+
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
@@ -97,29 +100,34 @@ export default function AppointmentManagementPage() {
     form.resetFields();
     form.setFieldsValue({
       appointmentDate: dayjs(),
+      startTime: '09:00',
     });
+    setIsExistingPatient(null);
+    setFoundPatientId(null);
     setEditorVisible(true);
   };
 
   const handleEdit = (record) => {
-    // VTTech constraint: Chỉ cho phép sửa những lịch hẹn "Chưa đến"
+    // VTTech constraint: Chi cho phep sua nhung lich hen chua den
     if (record.status !== 'BOOKED' && record.status !== 'CONFIRMED') {
-      message.error('Chỉ được chỉnh sửa lịch hẹn ở trạng thái Chờ xác nhận hoặc Đã xác nhận');
+      message.error('Chi duoc chinh sua lich hen o trang thai Cho xac nhan hoac Da xac nhan');
       return;
     }
 
     setSelectedAppointment(record);
     form.resetFields();
     form.setFieldsValue({
-      patientId: record.patientId,
+      patientPhone: record.patient?.phone || '',
+      patientFullName: record.patient?.fullName || '',
       doctorId: record.doctorId || undefined,
       roomId: record.roomId || undefined,
       serviceId: record.serviceId || undefined,
       appointmentDate: dayjs(record.appointmentDate),
       startTime: record.startTime,
-      endTime: record.endTime,
       notes: record.notes || '',
     });
+    setIsExistingPatient(true);
+    setFoundPatientId(record.patientId);
     setEditorVisible(true);
   };
 
@@ -152,34 +160,86 @@ export default function AppointmentManagementPage() {
     setCheckInVisible(true);
   };
 
+  const handlePhoneChange = async (e) => {
+    const value = e.target.value.replace(/\D/g, '');
+    form.setFieldsValue({ patientPhone: value });
+
+    if (value.length === 10) {
+      const existing = patients.find((p) => p.phone === value);
+      if (existing) {
+        setIsExistingPatient(true);
+        setFoundPatientId(existing.id);
+        form.setFieldsValue({ patientFullName: existing.fullName });
+      } else {
+        setIsExistingPatient(false);
+        setFoundPatientId(null);
+      }
+    } else {
+      setIsExistingPatient(null);
+      setFoundPatientId(null);
+    }
+  };
+
+  const calculateEndTime = (startTime) => {
+    if (!startTime) return '09:30';
+    const [hours, minutes] = startTime.split(':').map(Number);
+    if (isNaN(hours) || isNaN(minutes)) return '09:30';
+    let endMinutes = minutes + 30;
+    let endHours = hours;
+    if (endMinutes >= 60) {
+      endMinutes -= 60;
+      endHours += 1;
+    }
+    if (endHours >= 24) {
+      endHours -= 24;
+    }
+    const pad = (num) => String(num).padStart(2, '0');
+    return `${pad(endHours)}:${pad(endMinutes)}`;
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
       const values = await form.validateFields();
+
+      let patientId = foundPatientId;
+      if (!patientId) {
+        const newPatient = await patientService.createPatient({
+          fullName: values.patientFullName,
+          phone: values.patientPhone,
+          dob: '1990-01-01',
+          gender: 'OTHER',
+        });
+        patientId = newPatient.id;
+        await loadMetadata();
+      }
+
+      const calculatedEndTime = calculateEndTime(values.startTime);
+
       const payload = {
         branchId: activeBranchId,
-        patientId: values.patientId,
+        patientId: patientId,
         doctorId: values.doctorId,
         roomId: values.roomId,
         serviceId: values.serviceId,
         appointmentDate: values.appointmentDate.format('YYYY-MM-DD'),
         startTime: values.startTime,
-        endTime: values.endTime,
+        endTime: calculatedEndTime,
         notes: values.notes,
       };
 
       if (selectedAppointment) {
         await appointmentService.updateAppointment(selectedAppointment.id, payload);
-        message.success('Cập nhật lịch hẹn thành công!');
+        message.success('Cap nhat lich hen thanh cong!');
       } else {
         await appointmentService.createAppointment(payload);
-        message.success('Tạo lịch hẹn khám thành công!');
+        message.success('Tao lich hen kham thanh cong!');
       }
       setEditorVisible(false);
       fetchAppointments();
     } catch (err) {
       console.error(err);
-      message.error(err.response?.data?.message || 'Lưu thông tin lịch hẹn thất bại');
+      message.error(err.response?.data?.message || 'Luu thong tin lich hen that bai');
     } finally {
       setSaving(false);
     }
@@ -368,26 +428,38 @@ export default function AppointmentManagementPage() {
         size="small"
       >
         <Form form={form} layout="vertical" size="small">
-          <Form.Item
-            name="patientId"
-            label="Chọn Bệnh nhân"
-            rules={[{ required: true, message: 'Vui lòng chọn bệnh nhân' }]}
-          >
-            <Select
-              showSearch
-              placeholder="Gõ tên hoặc SĐT để tìm"
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                option?.children?.toLowerCase()?.indexOf(input.toLowerCase()) >= 0
-              }
-            >
-              {patients.map((p) => (
-                <Option key={p.id} value={p.id}>
-                  {p.fullName.toUpperCase()} ({p.phone}) - {p.patientCode}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item
+                name="patientPhone"
+                label={
+                  <Space>
+                    <span>So dien thoai</span>
+                    {isExistingPatient === true && <Tag color="green">Benh nhan cu</Tag>}
+                    {isExistingPatient === false && <Tag color="blue">Benh nhan moi</Tag>}
+                  </Space>
+                }
+                rules={[
+                  { required: true, message: 'Vui long nhap so dien thoai' },
+                  { pattern: /^[0-9]{10}$/, message: 'SDT phai co 10 chu so' }
+                ]}
+              >
+                <Input placeholder="Vi du: 0912345678" onChange={handlePhoneChange} maxLength={10} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="patientFullName"
+                label="Ho va ten benh nhan"
+                rules={[{ required: true, message: 'Vui long nhap ho ten' }]}
+              >
+                <Input 
+                  placeholder="Ho ten viet hoa" 
+                  disabled={isExistingPatient === true} 
+                />
+              </Form.Item>
+            </Col>
+          </Row>
 
           <Row gutter={12}>
             <Col span={12}>
@@ -429,37 +501,25 @@ export default function AppointmentManagementPage() {
           </Form.Item>
 
           <Row gutter={12}>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="appointmentDate"
-                label="Ngày hẹn"
-                rules={[{ required: true, message: 'Vui lòng chọn ngày hẹn' }]}
+                label="Ngay hen"
+                rules={[{ required: true, message: 'Vui long chon ngay hen' }]}
               >
                 <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="startTime"
-                label="Giờ bắt đầu"
+                label="Gio bat dau"
                 rules={[
-                  { required: true, message: 'Nhập giờ bắt đầu' },
-                  { pattern: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, message: 'Định dạng HH:MM' }
+                  { required: true, message: 'Nhap gio bat dau' },
+                  { pattern: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, message: 'Dinh dang HH:MM' }
                 ]}
               >
                 <Input placeholder="09:00" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="endTime"
-                label="Giờ kết thúc"
-                rules={[
-                  { required: true, message: 'Nhập giờ kết thúc' },
-                  { pattern: /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, message: 'Định dạng HH:MM' }
-                ]}
-              >
-                <Input placeholder="09:30" />
               </Form.Item>
             </Col>
           </Row>
