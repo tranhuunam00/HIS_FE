@@ -24,6 +24,30 @@ const getTodayStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
+const WORKLIST_SCOPES = {
+  OPEN: [
+    'WAITING_CLINICAL_EXAM',
+    'WAITING_SERVICE',
+    'WAITING_CONCLUSION',
+    'IN_CLINICAL_EXAM',
+    'IN_SERVICE',
+    'IN_CONCLUSION',
+    'CLINICAL_EXAM_DONE',
+    'ALL_SERVICES_DONE',
+    'WAITING_RESULTS',
+  ],
+  ACCEPTED: [
+    'IN_CLINICAL_EXAM',
+    'IN_SERVICE',
+    'IN_CONCLUSION',
+    'CLINICAL_EXAM_DONE',
+    'ALL_SERVICES_DONE',
+    'WAITING_RESULTS',
+    'COMPLETED',
+  ],
+  DONE: ['COMPLETED'],
+};
+
 const getVisitStatusTag = (status) => {
   switch (status) {
     case 'WAITING_CLINICAL_EXAM':
@@ -57,6 +81,9 @@ export default function OrderManagementPage() {
   const [visits, setVisits] = useState([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [searchVisitText, setSearchVisitText] = useState('');
+  const [worklistDate, setWorklistDate] = useState(getTodayStr());
+  const [serviceFilterId, setServiceFilterId] = useState(undefined);
+  const [worklistScope, setWorklistScope] = useState('OPEN');
   const [selectedVisit, setSelectedVisit] = useState(null);
   
   const [order, setOrder] = useState(null);
@@ -64,6 +91,7 @@ export default function OrderManagementPage() {
 
   const [specialties, setSpecialties] = useState([]);
   const [services, setServices] = useState([]);
+  const [allServices, setAllServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
 
   const [form] = Form.useForm();
@@ -82,25 +110,31 @@ export default function OrderManagementPage() {
   const [selectedOrderItem, setSelectedOrderItem] = useState(null);
   const [resultNotes, setResultNotes] = useState('');
   
-  const activeBranchId = localStorage.getItem('activeBranchId');
+  const [activeBranchId, setActiveBranchId] = useState(localStorage.getItem('activeBranchId'));
+
+  useEffect(() => {
+    loadSpecialties();
+    loadServiceFilterOptions();
+  }, []);
+
+  useEffect(() => {
+    loadUserProfile();
+    loadMetadata();
+    setSelectedVisit(null);
+    setOrder(null);
+  }, [activeBranchId]);
 
   useEffect(() => {
     fetchVisits();
-    loadSpecialties();
-    loadUserProfile();
-    loadMetadata();
-    
-    // Listen for branch changes
+  }, [activeBranchId, currentUser?.staff?.id, currentUser?.roleName, worklistDate, serviceFilterId]);
+
+  useEffect(() => {
     const handleBranchChange = () => {
-      setSelectedVisit(null);
-      setOrder(null);
-      fetchVisits();
-      loadUserProfile();
-      loadMetadata();
+      setActiveBranchId(localStorage.getItem('activeBranchId'));
     };
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
-  }, [activeBranchId]);
+  }, []);
 
   const loadMetadata = async () => {
     if (!activeBranchId) return;
@@ -131,15 +165,29 @@ export default function OrderManagementPage() {
   };
 
   const fetchVisits = async () => {
-    if (!activeBranchId) return;
+    if (!activeBranchId || !currentUser) return;
     try {
       setLoadingVisits(true);
-      const today = getTodayStr();
-      const list = await visitService.getVisits({ branchId: activeBranchId, date: today });
+      const params = {
+        branchId: activeBranchId,
+        date: worklistDate,
+      };
+      if (['DOCTOR', 'NURSE', 'TECHNICIAN'].includes(currentUser.roleName) && currentUser.staff?.id) {
+        params.doctorId = currentUser.staff.id;
+      }
+      if (serviceFilterId) {
+        params.serviceId = serviceFilterId;
+      }
+
+      const list = await visitService.getVisits(params);
       setVisits(list);
+      if (selectedVisit && !list.some((item) => item.id === selectedVisit.id)) {
+        setSelectedVisit(null);
+        setOrder(null);
+      }
     } catch (err) {
       console.error(err);
-      message.error('Không thể tải danh sách lượt khám hôm nay');
+      message.error('Không thể tải danh sách lượt khám theo bộ lọc');
     } finally {
       setLoadingVisits(false);
     }
@@ -149,6 +197,15 @@ export default function OrderManagementPage() {
     try {
       const list = await medicalService.getSpecialties();
       setSpecialties(list.filter(s => s.isActive));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const loadServiceFilterOptions = async () => {
+    try {
+      const list = await medicalService.getServices();
+      setAllServices(list.filter(s => s.isActive));
     } catch (err) {
       console.error(err);
     }
@@ -359,9 +416,9 @@ export default function OrderManagementPage() {
   };
 
   const filteredVisits = visits.filter(v => {
-    if (currentUser && ['DOCTOR', 'NURSE'].includes(currentUser.roleName)) {
-      const doctorRoomIds = currentUser.staff?.assignments?.map(a => a.roomId).filter(Boolean) || [];
-      if (!doctorRoomIds.includes(v.currentRoomId)) return false;
+    if (worklistScope !== 'ALL') {
+      const allowedStatuses = WORKLIST_SCOPES[worklistScope] || [];
+      if (!allowedStatuses.includes(v.status)) return false;
     }
     const term = searchVisitText.toLowerCase();
     const patientName = v.patient?.fullName?.toLowerCase() || '';
@@ -526,10 +583,11 @@ export default function OrderManagementPage() {
         <Col span={8}>
           <Card
             title={
-              <span style={{ fontSize: 14, fontWeight: 600 }}>
-                <UserOutlined style={{ marginRight: 8, color: '#52c41a' }} />
-                Lượt khám hôm nay
-              </span>
+              <Space size={6}>
+                <UserOutlined style={{ color: '#52c41a' }} />
+                <span style={{ fontSize: 14, fontWeight: 600 }}>Worklist khám</span>
+                <Badge count={filteredVisits.length} style={{ backgroundColor: '#52c41a' }} />
+              </Space>
             }
             size="small"
             style={{ height: 'calc(100vh - 120px)', overflowY: 'auto' }}
@@ -543,6 +601,61 @@ export default function OrderManagementPage() {
                 style={{ marginBottom: 12 }}
               />
             )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              <Row gutter={[6, 6]}>
+                <Col span={10}>
+                  <Input
+                    type="date"
+                    value={worklistDate}
+                    onChange={(e) => setWorklistDate(e.target.value || getTodayStr())}
+                    size="small"
+                  />
+                </Col>
+                <Col span={14}>
+                  <Select
+                    placeholder="Lọc theo dịch vụ"
+                    value={serviceFilterId}
+                    onChange={setServiceFilterId}
+                    allowClear
+                    showSearch
+                    optionFilterProp="label"
+                    size="small"
+                    style={{ width: '100%' }}
+                    options={allServices.map((service) => ({
+                      value: service.id,
+                      label: `${service.code || ''} ${service.name}`.trim(),
+                    }))}
+                  />
+                </Col>
+              </Row>
+              <Row gutter={[6, 6]}>
+                <Col span={18}>
+                  <Select
+                    value={worklistScope}
+                    onChange={setWorklistScope}
+                    size="small"
+                    style={{ width: '100%' }}
+                    options={[
+                      { value: 'OPEN', label: 'Chờ + đang xử lý' },
+                      { value: 'ACCEPTED', label: 'Đã/đang nhận' },
+                      { value: 'DONE', label: 'Hoàn thành' },
+                      { value: 'ALL', label: 'Tất cả trạng thái' },
+                    ]}
+                  />
+                </Col>
+                <Col span={6}>
+                  <Button
+                    size="small"
+                    block
+                    icon={<SearchOutlined />}
+                    loading={loadingVisits}
+                    onClick={fetchVisits}
+                  >
+                    Lọc
+                  </Button>
+                </Col>
+              </Row>
+            </div>
             <Input
               placeholder="Tìm tên, mã LK, sđt..."
               prefix={<SearchOutlined />}

@@ -175,7 +175,7 @@ function AdminLayout() {
     {
       key: '/admin/billing/orders',
       icon: <ShoppingCartOutlined />,
-      label: <Link to="/admin/billing/orders">Chỉ định dịch vụ</Link>,
+      label: <Link to="/admin/billing/orders">Worklist & Chỉ định</Link>,
       roles: ['DOCTOR', 'NURSE', 'ADMIN'],
     },
     {
