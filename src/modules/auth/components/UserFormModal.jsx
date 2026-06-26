@@ -11,13 +11,11 @@ export default function UserFormModal({
   roles,
   staffList,
   branches,
-  loginTimeWindows,
   onClose,
   onRefresh,
 }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
-  const [limitLoginTime, setLimitLoginTime] = useState(false);
   const [allBranches, setAllBranches] = useState(true);
   const isEdit = !!user;
 
@@ -31,7 +29,6 @@ export default function UserFormModal({
     if (user) {
       const isAllBranches = user.branchScopeMode === 'ALL';
       setAllBranches(isAllBranches);
-      setLimitLoginTime(!!user.loginTimeWindowId);
       form.setFieldsValue({
         staffId: user.staffId || undefined,
         identityNumber: user.staffIdentityNumber || '',
@@ -41,19 +38,13 @@ export default function UserFormModal({
         defaultBranchId: user.defaultBranchId || undefined,
         branchScopeMode: user.branchScopeMode || 'SPECIFIC',
         branchIds: user.branchScopeIds || [],
-        bypassIpRestriction: user.bypassIpRestriction,
-        limitLoginTime: !!user.loginTimeWindowId,
-        loginTimeWindowId: user.loginTimeWindowId || undefined,
         failedLoginLimit: user.failedLoginLimit || undefined,
       });
     } else {
       setAllBranches(true);
-      setLimitLoginTime(false);
       form.resetFields();
       form.setFieldsValue({
         branchScopeMode: 'ALL',
-        bypassIpRestriction: true,
-        limitLoginTime: false,
       });
     }
   }, [visible, user, form]);
@@ -84,16 +75,6 @@ export default function UserFormModal({
     });
   };
 
-  const handleLimitTimeChange = (checked) => {
-    setLimitLoginTime(checked);
-    if (!checked) {
-      form.setFieldsValue({
-        loginTimeWindowId: undefined,
-        failedLoginLimit: undefined,
-      });
-    }
-  };
-
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
@@ -113,9 +94,9 @@ export default function UserFormModal({
         defaultBranchId,
         branchScopeMode: values.branchScopeMode,
         branchIds: selectedBranchIds,
-        bypassIpRestriction: values.bypassIpRestriction,
-        loginTimeWindowId: values.limitLoginTime ? values.loginTimeWindowId : null,
-        failedLoginLimit: values.limitLoginTime ? values.failedLoginLimit : null,
+        bypassIpRestriction: true,
+        loginTimeWindowId: null,
+        failedLoginLimit: values.failedLoginLimit ? Number(values.failedLoginLimit) : null,
       };
 
       if (isEdit) {
@@ -148,70 +129,66 @@ export default function UserFormModal({
       destroyOnClose
       width={1160}
       footer={[
-        <Button key="close" size="small" onClick={onClose}>
-          Đóng
+        <Button key="cancel" size="small" onClick={onClose}>
+          Hủy
         </Button>,
-        <Button key="save" type="primary" size="small" loading={submitting} onClick={handleSubmit}>
-          Lưu
+        <Button
+          key="submit"
+          type="primary"
+          size="small"
+          loading={submitting}
+          onClick={handleSubmit}
+        >
+          Lưu lại
         </Button>,
       ]}
-      styles={{ body: { paddingTop: 8 } }}
     >
-      <div style={{ fontSize: 12, color: '#587199', marginBottom: 10 }}>
-        Chỉ tiết thông tin user - Khi thay đổi giá trị cần đăng nhập lại để áp dụng
-      </div>
-
       <Form form={form} layout="vertical" size="small">
+        <div style={{ fontWeight: 600, fontSize: 13, color: '#30456c', marginBottom: 12 }}>Thông tin cơ bản</div>
         <Row gutter={12}>
           <Col span={8}>
             <Form.Item
-              label="Nhân viên"
+              label="Nhân sự liên kết"
               name="staffId"
-              rules={[{ required: true, message: 'Chọn nhân viên' }]}
+              rules={[{ required: true, message: 'Chọn nhân sự liên kết' }]}
             >
               <Select
+                placeholder="Chọn nhân sự"
                 showSearch
-                placeholder="eg .nhân viên"
-                optionFilterProp="label"
-                onChange={handleStaffChange}
+                optionFilterProp="children"
                 disabled={isEdit}
+                onChange={handleStaffChange}
               >
                 {availableStaff.map((staff) => (
-                  <Option
-                    key={staff.id}
-                    value={staff.id}
-                    label={`${staff.staffCode} ${staff.fullName}`}
-                  >
+                  <Option key={staff.id} value={staff.id}>
                     {staff.staffCode} - {staff.fullName}
                   </Option>
                 ))}
               </Select>
             </Form.Item>
           </Col>
-
           <Col span={8}>
             <Form.Item
               label="Số CCCD"
               name="identityNumber"
-              rules={[
-                { required: true, message: 'Nhập số CCCD' },
-                { pattern: /^[0-9]{9,12}$/, message: 'CCCD phải gồm 9 đến 12 chữ số' },
-              ]}
+              rules={[{ required: true, message: 'Nhập số định danh/CCCD' }]}
             >
-              <Input placeholder="eg .số CCCD" />
+              <Input placeholder="eg .001095000123" />
             </Form.Item>
           </Col>
-
           <Col span={8}>
             <Form.Item
-              label="Tên đăng nhập"
-              name="username"
-              rules={[
-                { required: true, message: 'Nhập tên đăng nhập' },
-                { pattern: /^[A-Za-z0-9._-]+$/, message: 'Chỉ gồm chữ, số, dấu chấm, gạch dưới, gạch ngang' },
-              ]}
+              label="Vai trò/Nhóm quyền"
+              name="roleId"
+              rules={[{ required: true, message: 'Chọn nhóm quyền' }]}
             >
-              <Input placeholder="eg .tên đăng nhập" />
+              <Select placeholder="Chọn nhóm quyền">
+                {roles.filter((r) => r.name !== 'PATIENT').map((role) => (
+                  <Option key={role.id} value={role.id}>
+                    {role.name}
+                  </Option>
+                ))}
+              </Select>
             </Form.Item>
           </Col>
         </Row>
@@ -219,45 +196,41 @@ export default function UserFormModal({
         <Row gutter={12}>
           <Col span={8}>
             <Form.Item
-              label="Mật khẩu"
-              name="password"
-              rules={isEdit ? [] : [
-                { required: true, message: 'Nhập mật khẩu' },
-                { min: 6, message: 'Tối thiểu 6 ký tự' },
-              ]}
+              label="Tên đăng nhập"
+              name="username"
+              rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}
             >
-              <Input.Password
-                placeholder={isEdit ? 'Đổi bằng nút reset mật khẩu' : 'eg .mật khẩu'}
-                disabled={isEdit}
-                iconRender={(visibleIcon) => (visibleIcon ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
-              />
+              <Input placeholder="eg .nam.th" disabled={isEdit} />
             </Form.Item>
           </Col>
-
           <Col span={8}>
             <Form.Item
               label="Email"
               name="email"
-              rules={[{ type: 'email', message: 'Email không hợp lệ' }]}
+              rules={[
+                { required: true, message: 'Nhập email liên hệ' },
+                { type: 'email', message: 'Email không hợp lệ' },
+              ]}
             >
-              <Input placeholder="eg .email" />
+              <Input placeholder="eg .nam@gmail.com" />
             </Form.Item>
           </Col>
-
           <Col span={8}>
-            <Form.Item
-              label="Nhóm"
-              name="roleId"
-              rules={[{ required: true, message: 'Chọn nhóm user' }]}
-            >
-              <Select placeholder="eg .nhóm">
-                {roles.map((role) => (
-                  <Option key={role.id} value={role.id}>
-                    {role.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
+            {!isEdit && (
+              <Form.Item
+                label="Mật khẩu"
+                name="password"
+                rules={[
+                  { required: true, message: 'Nhập mật khẩu khởi tạo' },
+                  { min: 6, message: 'Mật khẩu phải dài tối thiểu 6 ký tự' },
+                ]}
+              >
+                <Input.Password
+                  placeholder="Mật khẩu khởi tạo"
+                  iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+                />
+              </Form.Item>
+            )}
           </Col>
         </Row>
 
@@ -281,23 +254,11 @@ export default function UserFormModal({
 
         <Divider style={{ margin: '6px 0 10px' }} />
 
-        <div style={{ fontWeight: 600, fontSize: 13, color: '#30456c' }}>Phạm vi sử dụng</div>
-        <div style={{ fontSize: 12, color: '#587199', marginBottom: 12 }}>Cấu hình phạm vi sử dụng phần mềm của user</div>
+        <div style={{ fontWeight: 600, fontSize: 13, color: '#30456c' }}>Phạm vi sử dụng & Bảo mật</div>
+        <div style={{ fontSize: 12, color: '#587199', marginBottom: 12 }}>Cấu hình phạm vi sử dụng phần mềm và bảo mật tài khoản của user</div>
 
         <Row gutter={16}>
           <Col span={12}>
-            <Space align="start" size={10}>
-              <Form.Item name="bypassIpRestriction" valuePropName="checked" style={{ marginBottom: 8 }}>
-                <Switch size="small" />
-              </Form.Item>
-              <div>
-                <div style={{ color: '#30456c' }}>Bỏ qua xác thực - IP</div>
-                <div style={{ color: '#587199', fontSize: 12 }}>Không bắt buộc đúng IP chi nhánh để sử dụng phần mềm</div>
-              </div>
-            </Space>
-
-            <br />
-
             <Space align="start" size={10}>
               <Form.Item name="branchScopeMode" noStyle>
                 <Input type="hidden" />
@@ -336,41 +297,12 @@ export default function UserFormModal({
           </Col>
 
           <Col span={12}>
-            <Space align="start" size={10}>
-              <Form.Item name="limitLoginTime" valuePropName="checked" style={{ marginBottom: 8 }}>
-                <Switch size="small" onChange={handleLimitTimeChange} />
-              </Form.Item>
-              <div>
-                <div style={{ color: '#30456c' }}>Giới hạn thời gian đăng nhập</div>
-                <div style={{ color: '#587199', fontSize: 12 }}>Giới hạn thời gian user có thể đăng nhập vào phần mềm</div>
-              </div>
-            </Space>
-
-            {limitLoginTime && (
-              <>
-                <Form.Item
-                  label="Giới hạn số lần sai mật khẩu"
-                  name="failedLoginLimit"
-                  style={{ marginTop: 8 }}
-                >
-                  <Input type="number" min={1} placeholder="eg .giới hạn số lần đăng nhập" />
-                </Form.Item>
-
-                <Form.Item
-                  label="Giới hạn đăng nhập"
-                  name="loginTimeWindowId"
-                  rules={[{ required: true, message: 'Chọn khung giờ đăng nhập' }]}
-                >
-                  <Select placeholder="Chọn khung giờ">
-                    {loginTimeWindows.map((item) => (
-                      <Option key={item.id} value={item.id}>
-                        {item.name}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-              </>
-            )}
+            <Form.Item
+              label="Giới hạn số lần sai mật khẩu"
+              name="failedLoginLimit"
+            >
+              <Input type="number" min={1} placeholder="eg .5" style={{ width: '100%' }} />
+            </Form.Item>
           </Col>
         </Row>
       </Form>
