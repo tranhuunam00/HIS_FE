@@ -159,14 +159,9 @@ export default function BranchFormModal({ visible, branch, onClose, onRefresh })
         </Row>
 
         <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item label="Vĩ độ GPS (Latitude)" name="latitude">
-              <InputNumber style={{ width: '100%' }} step={0.000001} placeholder="Ví dụ: 21.006326" />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item label="Kinh độ GPS (Longitude)" name="longitude">
-              <InputNumber style={{ width: '100%' }} step={0.000001} placeholder="Ví dụ: 105.843132" />
+          <Col span={24}>
+            <Form.Item label="Đường dẫn Google Map (Google Map Link)" name="googleMapUrl">
+              <Input placeholder="Ví dụ: https://maps.app.goo.gl/tW53Jk8pLgJ6e1nE8" />
             </Form.Item>
           </Col>
         </Row>

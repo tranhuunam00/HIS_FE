@@ -73,7 +73,14 @@ export default function BranchListTable() {
         <div>
           <div style={{ fontWeight: 'bold' }}>{text}</div>
           <small style={{ color: '#8c8c8c' }}>
-            <EnvironmentOutlined /> {record.addressDetail ? `${record.addressDetail}, ` : ''}{record.district ? `${record.district}, ` : ''}{record.province || ''}
+            <EnvironmentOutlined />{' '}
+            {record.googleMapUrl ? (
+              <a href={record.googleMapUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1890ff', textDecoration: 'underline' }}>
+                {record.addressDetail ? `${record.addressDetail}, ` : ''}{record.district ? `${record.district}, ` : ''}{record.province || ''}
+              </a>
+            ) : (
+              `${record.addressDetail ? `${record.addressDetail}, ` : ''}${record.district ? `${record.district}, ` : ''}${record.province || ''}`
+            )}
           </small>
         </div>
       ),
