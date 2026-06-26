@@ -22,6 +22,33 @@ const PRICE_TYPE_LABELS = {
   VIP: { label: 'VIP', color: 'purple' },
 };
 
+const getActivePriceObjectAtDate = (prices, targetDate) => {
+  if (!prices || prices.length === 0) return null;
+  const listedPrices = prices.filter(p => p.priceType === 'LISTED');
+  if (listedPrices.length === 0) {
+    return prices[0] || null;
+  }
+  
+  const targetTime = new Date(targetDate).setHours(0, 0, 0, 0);
+  
+  const eligiblePrices = listedPrices.filter(p => {
+    const effTime = new Date(p.effectiveDate).setHours(0, 0, 0, 0);
+    return effTime <= targetTime;
+  });
+  
+  if (eligiblePrices.length === 0) {
+    const sorted = [...listedPrices].sort((a, b) => 
+      new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()
+    );
+    return sorted[0];
+  }
+  
+  const sorted = eligiblePrices.sort((a, b) => 
+    new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()
+  );
+  return sorted[0];
+};
+
 export default function ServiceListTable() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -170,29 +197,16 @@ export default function ServiceListTable() {
       render: (val) => `${val} phút`,
     },
     {
-      title: 'Bảng giá hiện hành (VND)',
+      title: 'Đơn giá (VND)',
       dataIndex: 'prices',
       key: 'prices',
-      width: '20%',
+      width: '18%',
       render: (prices) => {
-        if (!prices || prices.length === 0) {
+        const activePrice = getActivePriceObjectAtDate(prices, new Date());
+        if (!activePrice) {
           return <span style={{ color: '#bfbfbf', fontSize: 11 }}>Chưa cấu hình giá</span>;
         }
-        return (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            {prices.map((p) => {
-              const labelConfig = PRICE_TYPE_LABELS[p.priceType] || { label: p.priceType, color: 'default' };
-              return (
-                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                  <Tag color={labelConfig.color} style={{ fontSize: 9, padding: '0 2px', height: 16, lineHeight: '14px', margin: 0 }}>
-                    {labelConfig.label}
-                  </Tag>
-                  <span style={{ fontWeight: 500 }}>{formatCurrency(p.amount)}</span>
-                </div>
-              );
-            })}
-          </Space>
-        );
+        return <span style={{ fontWeight: 600 }}>{formatCurrency(activePrice.amount)}</span>;
       },
     },
     {

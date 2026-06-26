@@ -24,6 +24,33 @@ const getTodayStr = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
 
+const getActivePriceObjectAtDate = (prices, targetDate) => {
+  if (!prices || prices.length === 0) return null;
+  const listedPrices = prices.filter(p => p.priceType === 'LISTED');
+  if (listedPrices.length === 0) {
+    return prices[0] || null;
+  }
+  
+  const targetTime = new Date(targetDate).setHours(0, 0, 0, 0);
+  
+  const eligiblePrices = listedPrices.filter(p => {
+    const effTime = new Date(p.effectiveDate).setHours(0, 0, 0, 0);
+    return effTime <= targetTime;
+  });
+  
+  if (eligiblePrices.length === 0) {
+    const sorted = [...listedPrices].sort((a, b) => 
+      new Date(a.effectiveDate).getTime() - new Date(b.effectiveDate).getTime()
+    );
+    return sorted[0];
+  }
+  
+  const sorted = eligiblePrices.sort((a, b) => 
+    new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime()
+  );
+  return sorted[0];
+};
+
 const WORKLIST_SCOPES = {
   OPEN: [
     'WAITING_CLINICAL_EXAM',
@@ -230,8 +257,9 @@ export default function OrderManagementPage() {
   const handleServiceChange = (serviceId) => {
     const selectedSvc = services.find(s => s.id === serviceId);
     if (selectedSvc) {
-      const listPrice = selectedSvc.prices?.find(p => p.priceType === 'LISTED');
-      const amount = listPrice ? Number(listPrice.amount) : (selectedSvc.prices?.[0] ? Number(selectedSvc.prices[0].amount) : 0);
+      const targetDate = order?.createdAt || new Date();
+      const activePrice = getActivePriceObjectAtDate(selectedSvc.prices, targetDate);
+      const amount = activePrice ? Number(activePrice.amount) : 0;
       form.setFieldsValue({ price: amount });
     }
   };
