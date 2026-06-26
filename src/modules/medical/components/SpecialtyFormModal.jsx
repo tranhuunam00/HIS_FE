@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Row, Col, Avatar, message } from 'antd';
-import { PictureOutlined } from '@ant-design/icons';
+import { Modal, Form, Input, Row, Col, Avatar, Upload, Button, message } from 'antd';
+import { PictureOutlined, UploadOutlined, LoadingOutlined } from '@ant-design/icons';
 import { medicalService } from '../../../services/medicalService';
 
 const { TextArea } = Input;
@@ -8,6 +8,7 @@ const { TextArea } = Input;
 export default function SpecialtyFormModal({ visible, specialty, onClose, onRefresh }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
   const isEdit = !!specialty;
 
@@ -122,6 +123,37 @@ export default function SpecialtyFormModal({ visible, specialty, onClose, onRefr
               <Input 
                 placeholder="Nhập link hình ảnh (MinIO/Web)..." 
                 onChange={handleIconUrlChange}
+                suffix={
+                  <Upload
+                    accept="image/*"
+                    showUploadList={false}
+                    beforeUpload={async (file) => {
+                      try {
+                        setUploading(true);
+                        const res = await medicalService.uploadFile(file);
+                        form.setFieldsValue({ iconUrl: res.url });
+                        setPreviewUrl(res.url);
+                        message.success('Tải ảnh lên MinIO thành công!');
+                      } catch (err) {
+                        console.error(err);
+                        message.error(err.response?.data?.message || 'Không thể tải ảnh lên MinIO');
+                      } finally {
+                        setUploading(false);
+                      }
+                      return false;
+                    }}
+                  >
+                    <Button 
+                      type="text" 
+                      size="small" 
+                      icon={uploading ? <LoadingOutlined /> : <UploadOutlined />}
+                      disabled={uploading}
+                      style={{ padding: '0 4px', height: 'auto' }}
+                    >
+                      {uploading ? 'Đang tải...' : 'Tải ảnh'}
+                    </Button>
+                  </Upload>
+                }
               />
             </Form.Item>
           </Col>

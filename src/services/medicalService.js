@@ -27,6 +27,17 @@ export const medicalService = {
     return res.data;
   },
 
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data;
+  },
+
   // === SERVICES & PRICES ===
   getServices: async (params = {}) => {
     const res = await api.get('/services', { params });
