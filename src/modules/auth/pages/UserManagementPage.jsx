@@ -35,6 +35,7 @@ import { orgService } from '../../../services/orgService';
 import { staffService } from '../../../services/staffService';
 import UserFormModal from '../components/UserFormModal';
 import LoginTimeWindowModal from '../components/LoginTimeWindowModal';
+import { EXCLUDE_ROLES_FILTER } from '../constants';
 
 const { Option } = Select;
 
@@ -106,7 +107,9 @@ export default function UserManagementPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = {
+        excludeRoles: EXCLUDE_ROLES_FILTER,
+      };
       if (filterRole !== 'ALL') params.roleId = filterRole;
       if (filterStatus !== 'ALL') params.status = filterStatus;
       if (searchText) params.search = searchText;
@@ -585,7 +588,7 @@ export default function UserManagementPage() {
                 onChange={setFilterRole}
               >
                 <Option value="ALL">Tất cả nhóm</Option>
-                {roles.map((r) => (
+                {roles.filter((r) => r.name !== 'PATIENT').map((r) => (
                   <Option key={r.id} value={r.id}>
                     {r.name}
                   </Option>

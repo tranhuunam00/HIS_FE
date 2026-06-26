@@ -1,0 +1,1 @@
+export const EXCLUDE_ROLES_FILTER = 'PATIENT';

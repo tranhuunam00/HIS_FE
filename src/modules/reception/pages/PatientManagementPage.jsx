@@ -246,7 +246,6 @@ export default function PatientManagementPage() {
         />
       </Card>
 
-      {/* Patient Profile Form Modal */}
       <Modal
         title={selectedPatient ? 'Chỉnh sửa hồ sơ bệnh nhân' : 'Đăng ký bệnh nhân mới'}
         open={formVisible}
@@ -258,7 +257,14 @@ export default function PatientManagementPage() {
         cancelText="Đóng"
         size="small"
       >
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <div>
+            {(selectedPatient?.phone?.startsWith('GOOGLE-') || selectedPatient?.dob === '1900-01-01') && (
+              <Tag color="warning" style={{ fontSize: '11px', padding: '4px 8px' }}>
+                🔑 Tài khoản liên kết Google (Chưa hoàn tất hồ sơ)
+              </Tag>
+            )}
+          </div>
           <Button
             type="dashed"
             icon={<ScanOutlined />}
@@ -269,6 +275,14 @@ export default function PatientManagementPage() {
             Quét CCCD (Demo)
           </Button>
         </div>
+
+        {(selectedPatient?.phone?.startsWith('GOOGLE-') || selectedPatient?.dob === '1900-01-01') && (
+          <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 4, color: '#d46b08', fontSize: '12px', lineHeight: '1.5' }}>
+            <strong>Lưu ý tiếp đón:</strong> Bệnh nhân đăng nhập qua Google chưa hoàn tất thông tin cá nhân.
+            {selectedPatient?.phone?.startsWith('GOOGLE-') && <div>• Số điện thoại hiện là ID Google tạm thời: <i>{selectedPatient.phone}</i>. Cần lấy SĐT thật của khách.</div>}
+            {selectedPatient?.dob === '1900-01-01' && <div>• Ngày sinh hiện là mặc định (01/01/1900). Cần cập nhật lại ngày sinh thật.</div>}
+          </div>
+        )}
 
         <Form form={form} layout="vertical" size="small">
           <Row gutter={12}>
