@@ -19,6 +19,25 @@ import { staffService } from '../../../services/staffService';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+const getPaymentStatusTag = (item) => (
+  item.isPaid
+    ? <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã thu</Tag>
+    : <Tag color="orange" style={{ margin: 0, fontSize: 10 }}>Chưa thu</Tag>
+);
+
+const getExecutionStatusTag = (item) => {
+  if (item.status === 'COMPLETED') {
+    return <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã thực hiện</Tag>;
+  }
+  if (item.status === 'IN_PROGRESS') {
+    return <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Đang thực hiện</Tag>;
+  }
+  if (item.status === 'CANCELLED') {
+    return <Tag color="red" style={{ margin: 0, fontSize: 10 }}>Đã hủy</Tag>;
+  }
+  return <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Chờ thực hiện</Tag>;
+};
+
 const getTodayStr = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -514,6 +533,17 @@ export default function OrderManagementPage() {
     return patientName.includes(term) || visitCode.includes(term) || phone.includes(term);
   });
 
+  const getRoomScopedOrderItems = () => {
+    const items = order?.items || [];
+    const roomId = selectedVisit?.currentRoomId;
+    const currentRoom = roomId ? rooms.find((room) => room.id === roomId) : null;
+    const serviceIds = currentRoom?.serviceIds || [];
+    if (!currentRoom || serviceIds.length === 0) {
+      return items;
+    }
+    return items.filter((item) => serviceIds.includes(item.serviceId));
+  };
+
   const orderItemColumns = [
     {
       title: 'Dịch vụ y tế',
@@ -575,6 +605,8 @@ export default function OrderManagementPage() {
           <Space direction="vertical" size={2} style={{ alignItems: 'center' }}>
             {record.status === 'COMPLETED' ? (
               <Tag color="green">Đã thực hiện</Tag>
+            ) : record.status === 'IN_PROGRESS' ? (
+              <Tag color="blue">Đang thực hiện</Tag>
             ) : record.status === 'CANCELLED' ? (
               <Tag color="red">Đã hủy</Tag>
             ) : (
@@ -600,20 +632,22 @@ export default function OrderManagementPage() {
         if (record.status === 'PENDING') {
           return (
             <Space>
-              <Tooltip title="Trả sau (Kết quả bổ sung sau)">
-                <Button
-                  type="text"
-                  icon={<FileTextOutlined style={{ color: '#d4b106' }} />}
-                  onClick={() => handleSaveResult(record.id, 'COMPLETED', 'PENDING', '')}
-                />
-              </Tooltip>
-              <Tooltip title="Trả luôn (Nhập & trả KQ ngay)">
-                <Button
-                  type="text"
-                  icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-                  onClick={() => handleOpenResultModal(record)}
-                />
-              </Tooltip>
+              {record.isPaid && (
+                <Tooltip title="Bắt đầu thực hiện chỉ định này">
+                  <Button
+                    type="primary"
+                    size="small"
+                    ghost
+                    icon={<PlayCircleOutlined />}
+                    onClick={() => handleUpdateItemStatus(record.id, 'IN_PROGRESS')}
+                  >
+                    Đang làm
+                  </Button>
+                </Tooltip>
+              )}
+              {!record.isPaid && (
+                <Text type="secondary" style={{ fontSize: 12 }}>Chưa thu</Text>
+              )}
               {order?.status !== 'PAID' && (
                 <Tooltip title="Xóa dịch vụ chưa thực hiện">
                   <Button
@@ -624,6 +658,29 @@ export default function OrderManagementPage() {
                   />
                 </Tooltip>
               )}
+            </Space>
+          );
+        }
+        if (record.status === 'IN_PROGRESS') {
+          return (
+            <Space>
+              <Tooltip title="Trả sau (Kết quả bổ sung sau)">
+                <Button
+                  type="text"
+                  icon={<FileTextOutlined style={{ color: '#d4b106' }} />}
+                  onClick={() => handleSaveResult(record.id, 'COMPLETED', 'PENDING', '')}
+                />
+              </Tooltip>
+              <Tooltip title="Đã xong / nhập kết quả">
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                  onClick={() => handleOpenResultModal(record)}
+                >
+                  Đã xong
+                </Button>
+              </Tooltip>
             </Space>
           );
         }
@@ -870,7 +927,7 @@ export default function OrderManagementPage() {
               {/* Order Items Table */}
               <Title level={5} style={{ margin: '8px 0', fontSize: 13 }}>Dịch vụ chỉ định</Title>
               <Table
-                dataSource={order?.items || []}
+                dataSource={getRoomScopedOrderItems()}
                 columns={orderItemColumns}
                 rowKey="id"
                 pagination={false}
@@ -992,7 +1049,7 @@ export default function OrderManagementPage() {
             
             <div style={{ background: '#fff', border: '1px solid #edf2f7', padding: '12px', borderRadius: '6px', fontSize: '12px' }}>
               <div style={{ fontWeight: 600, color: '#30456c', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>Dịch vụ chỉ định & Trạng thái thanh toán</span>
+                <span>Dịch vụ chỉ định & Trạng thái</span>
                 {order ? (
                   <Tag color={order.status === 'PAID' ? 'green' : 'orange'} style={{ margin: 0, fontSize: '10px' }}>
                     {order.status === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN'}
@@ -1002,24 +1059,24 @@ export default function OrderManagementPage() {
                 )}
               </div>
               
-              {order && order.items?.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
-                  {order.items.map((item, idx) => (
-                    <div key={item.id || idx} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 8px', borderRadius: 4 }}>
-                      <span style={{ fontWeight: 500, color: '#262626' }}>{item.service?.name}</span>
-                      <span style={{ fontSize: '11px' }}>
-                        {item.isPaid ? (
-                          <span style={{ color: '#52c41a', fontWeight: 600 }}>● Đã thanh toán</span>
-                        ) : (
-                          <span style={{ color: '#fa8c16', fontWeight: 600 }}>● Chưa thanh toán</span>
-                        )}
-                      </span>
+              {order && getRoomScopedOrderItems().length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 190, overflowY: 'auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 78px 96px', gap: 6, padding: '0 8px', color: '#64748b', fontWeight: 600, fontSize: 11 }}>
+                    <span>Dịch vụ</span>
+                    <span>Thanh toán</span>
+                    <span>Thực hiện</span>
+                  </div>
+                  {getRoomScopedOrderItems().map((item, idx) => (
+                    <div key={item.id || idx} style={{ display: 'grid', gridTemplateColumns: '1fr 78px 96px', gap: 6, alignItems: 'center', background: '#f8fafc', padding: '6px 8px', borderRadius: 4 }}>
+                      <span style={{ fontWeight: 500, color: '#262626', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.service?.name}>{item.service?.name}</span>
+                      <span>{getPaymentStatusTag(item)}</span>
+                      <span title={item.performedBy?.fullName || ''}>{getExecutionStatusTag(item)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div style={{ color: '#8c8c8c', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
-                  Chưa có dịch vụ chỉ định nào.
+                  Chưa có dịch vụ chỉ định thuộc phòng này.
                 </div>
               )}
               

@@ -18,6 +18,26 @@ import { staffService } from '../../../services/staffService';
 import { visitService } from '../../../services/visitService';
 
 const { Title, Text } = Typography;
+const { Option } = Select;
+
+const getPaymentStatusTag = (item) => (
+  item.isPaid
+    ? <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã thu</Tag>
+    : <Tag color="orange" style={{ margin: 0, fontSize: 10 }}>Chưa thu</Tag>
+);
+
+const getExecutionStatusTag = (item) => {
+  if (item.status === 'COMPLETED') {
+    return <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã thực hiện</Tag>;
+  }
+  if (item.status === 'IN_PROGRESS') {
+    return <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Đang thực hiện</Tag>;
+  }
+  if (item.status === 'CANCELLED') {
+    return <Tag color="red" style={{ margin: 0, fontSize: 10 }}>Đã hủy</Tag>;
+  }
+  return <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Chờ thực hiện</Tag>;
+};
 
 export default function CashierPage() {
   const [orders, setOrders] = useState([]);
@@ -469,6 +489,7 @@ export default function CashierPage() {
       align: 'center',
       render: (status) => {
         if (status === 'COMPLETED') return <Tag color="green">Đã thực hiện</Tag>;
+        if (status === 'IN_PROGRESS') return <Tag color="blue">Đang thực hiện</Tag>;
         if (status === 'CANCELLED') return <Tag color="red">Đã hủy</Tag>;
         return <Tag color="orange">Chờ thực hiện</Tag>;
       }
@@ -933,7 +954,7 @@ export default function CashierPage() {
 
                 <div style={{ background: '#fff', border: '1px solid #edf2f7', padding: '12px', borderRadius: '6px', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, color: '#30456c', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Dịch vụ chỉ định & Trạng thái thanh toán</span>
+                    <span>Dịch vụ chỉ định & Trạng thái</span>
                     {selectedOrder ? (
                       <Tag color={selectedOrder.status === 'PAID' ? 'green' : 'orange'} style={{ margin: 0, fontSize: '10px' }}>
                         {selectedOrder.status === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN'}
@@ -944,17 +965,17 @@ export default function CashierPage() {
                   </div>
 
                   {selectedOrder && selectedOrder.items?.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 190, overflowY: 'auto' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 78px 96px', gap: 6, padding: '0 8px', color: '#64748b', fontWeight: 600, fontSize: 11 }}>
+                        <span>Dịch vụ</span>
+                        <span>Thanh toán</span>
+                        <span>Thực hiện</span>
+                      </div>
                       {selectedOrder.items.map((item, idx) => (
-                        <div key={item.id || idx} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 8px', borderRadius: 4 }}>
-                          <span style={{ fontWeight: 500, color: '#262626' }}>{item.service?.name}</span>
-                          <span style={{ fontSize: '11px' }}>
-                            {selectedOrder.status === 'PAID' ? (
-                              <span style={{ color: '#52c41a', fontWeight: 600 }}>● Đã thanh toán</span>
-                            ) : (
-                              <span style={{ color: '#fa8c16', fontWeight: 600 }}>● Chưa thanh toán</span>
-                            )}
-                          </span>
+                        <div key={item.id || idx} style={{ display: 'grid', gridTemplateColumns: '1fr 78px 96px', gap: 6, alignItems: 'center', background: '#f8fafc', padding: '6px 8px', borderRadius: 4 }}>
+                          <span style={{ fontWeight: 500, color: '#262626', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.service?.name}>{item.service?.name}</span>
+                          <span>{getPaymentStatusTag(item)}</span>
+                          <span title={item.performedBy?.fullName || ''}>{getExecutionStatusTag(item)}</span>
                         </div>
                       ))}
                     </div>

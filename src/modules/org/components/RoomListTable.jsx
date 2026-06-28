@@ -24,6 +24,7 @@ export default function RoomListTable() {
   const [filteredData, setFilteredData] = useState([]);
   const [branches, setBranches] = useState([]);
   const [specialties, setSpecialties] = useState([]);
+  const [services, setServices] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -51,12 +52,14 @@ export default function RoomListTable() {
   const initData = async () => {
     try {
       setLoading(true);
-      const [branchList, specialtyList] = await Promise.all([
+      const [branchList, specialtyList, serviceList] = await Promise.all([
         orgService.getBranches(),
         medicalService.getSpecialties(),
+        medicalService.getServices({ isActive: true }),
       ]);
       setBranches(branchList);
       setSpecialties(specialtyList);
+      setServices(serviceList);
 
       const activeId = localStorage.getItem('activeBranchId');
       const storedExists = branchList.some(b => b.id === activeId);
@@ -229,6 +232,16 @@ export default function RoomListTable() {
           onChange={(checked) => handleToggleStatus(checked, record)}
         />
       ),
+    },
+    {
+      title: 'Thao tác',
+      key: 'serviceIds',
+      title: 'Dịch vụ',
+      width: '10%',
+      render: (_, record) => {
+        const count = (record.serviceIds || []).length;
+        return count > 0 ? <Tag color="green">{count} DV</Tag> : <span style={{ color: '#bfbfbf' }}>-</span>;
+      },
     },
     {
       title: 'Thao tác',
@@ -408,6 +421,7 @@ export default function RoomListTable() {
         room={selectedRoom}
         branchId={selectedBranchId}
         specialties={specialties}
+        services={services}
         branches={branches}
         onClose={() => setModalVisible(false)}
         onRefresh={() => fetchRooms(selectedBranchId)}

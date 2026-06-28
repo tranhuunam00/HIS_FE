@@ -4,7 +4,7 @@ import { roomService } from '../../../services/roomService';
 
 const { Option } = Select;
 
-export default function RoomFormModal({ visible, room, branchId, specialties, branches, onClose, onRefresh }) {
+export default function RoomFormModal({ visible, room, branchId, specialties, services = [], branches, onClose, onRefresh }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const isEdit = !!room;
@@ -20,6 +20,7 @@ export default function RoomFormModal({ visible, room, branchId, specialties, br
           specialtyId: room.specialtyId || undefined,
           floor: room.floor || '',
           capacity: room.capacity || 1,
+          serviceIds: room.serviceIds || [],
         });
       } else {
         form.resetFields();
@@ -43,6 +44,7 @@ export default function RoomFormModal({ visible, room, branchId, specialties, br
         specialtyId: values.specialtyId || null,
         floor: values.floor || null,
         capacity: values.capacity,
+        serviceIds: values.serviceIds || [],
       };
 
       if (isEdit) {
@@ -175,6 +177,25 @@ export default function RoomFormModal({ visible, room, branchId, specialties, br
             </Form.Item>
           </Col>
         </Row>
+
+        <Form.Item
+          label="Dịch vụ phòng được thực hiện"
+          name="serviceIds"
+        >
+          <Select
+            mode="multiple"
+            allowClear
+            showSearch
+            placeholder="Chọn danh sách dịch vụ phòng này được thực hiện"
+            optionFilterProp="children"
+          >
+            {services.map((service) => (
+              <Option key={service.id} value={service.id}>
+                {service.name} ({service.code})
+              </Option>
+            ))}
+          </Select>
+        </Form.Item>
       </Form>
     </Modal>
   );
