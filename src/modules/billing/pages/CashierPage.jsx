@@ -242,12 +242,19 @@ export default function CashierPage() {
       });
       message.success('Thanh toán thành công!');
 
+      const paidOrderSnapshot = {
+        ...selectedOrder,
+        status: 'PAID',
+        items: selectedOrder.items?.map(item => ({ ...item, isPaid: true })) || [],
+      };
+
       // Auto-trigger printing receipt
-      handlePrintInvoice(selectedOrder, [res]);
+      handlePrintInvoice(paidOrderSnapshot, [res]);
 
       const paidVisit = selectedOrder.visit;
-      setSelectedOrder(null);
-      fetchOrders(statusFilter);
+      setStatusFilter('PAID');
+      setSelectedOrder(paidOrderSnapshot);
+      await fetchOrders('PAID');
 
       // Auto-open transfer/coordination modal if visit is available
       if (paidVisit) {
@@ -316,6 +323,9 @@ export default function CashierPage() {
     const now = new Date();
     const dateTimeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} ${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;
 
+    const isPaidReceipt = paymentsList.length > 0 || orderData.items?.every(item => item.isPaid);
+    const receiptAmount = Number(orderData.totalAmount || 0);
+
     const itemsHtml = orderData.items?.map((item, idx) => `
       <tr>
         <td style="padding: 6px 0; font-size: 11px; border-bottom: 1px dashed #e5e7eb;">${idx + 1}. ${item.service?.name}</td>
@@ -378,7 +388,7 @@ export default function CashierPage() {
         <div class="totals">
           <div style="font-weight: 700; font-size: 11px; margin-bottom: 4px;">
             <span>Tổng cộng:</span>
-            <span style="color: #059669; font-size: 12px;">${Number(orderData.totalAmount).toLocaleString('vi-VN')} đ</span>
+            <span style="color: #059669; font-size: 12px;">${receiptAmount.toLocaleString('vi-VN')} đ</span>
           </div>
           <div>
             <span>Phương thức thanh toán:</span>
@@ -386,7 +396,7 @@ export default function CashierPage() {
           </div>
           <div>
             <span>Trạng thái:</span>
-            <span style="color: #059669; font-weight: 600;">ĐÃ THANH TOÁN</span>
+            <span style="color: ${isPaidReceipt ? '#059669' : '#d46b08'}; font-weight: 600;">${isPaidReceipt ? 'ĐÃ THANH TOÁN' : 'PHIẾU NHÁP / CHƯA THU'}</span>
           </div>
         </div>
         <div class="footer">
@@ -893,7 +903,7 @@ export default function CashierPage() {
                   <div>Ngân hàng: <strong>BIDV (Mã: 970418)</strong></div>
                   <div>Số tài khoản: <strong>2152486504</strong></div>
                   <div>Chủ tài khoản: <strong>TRAN HUU NAM</strong></div>
-                  <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{Number(selectedOrder.totalAmount).toLocaleString('vi-VN')}đ</strong></div>
+                  <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{unpaidAmount.toLocaleString('vi-VN')}đ</strong></div>
                   <div style={{ marginTop: 4 }}>Nội dung CK: <strong style={{ color: '#059669' }}>Thanh toan vien phi {selectedOrder.orderCode}</strong></div>
                 </div>
               </div>

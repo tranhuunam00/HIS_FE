@@ -1008,7 +1008,7 @@ export default function OrderManagementPage() {
                     <div key={item.id || idx} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 8px', borderRadius: 4 }}>
                       <span style={{ fontWeight: 500, color: '#262626' }}>{item.service?.name}</span>
                       <span style={{ fontSize: '11px' }}>
-                        {order.status === 'PAID' ? (
+                        {item.isPaid ? (
                           <span style={{ color: '#52c41a', fontWeight: 600 }}>● Đã thanh toán</span>
                         ) : (
                           <span style={{ color: '#fa8c16', fontWeight: 600 }}>● Chưa thanh toán</span>
