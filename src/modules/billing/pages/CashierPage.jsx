@@ -443,8 +443,16 @@ export default function CashierPage() {
       align: 'right',
       render: (_, r) => <Text type="success" strong>{(Number(r.price) * r.quantity).toLocaleString('vi-VN')}đ</Text>
     },
+    {
+      title: 'Thanh toán',
+      key: 'isPaid',
+      align: 'center',
+      render: (_, r) => r.isPaid
+        ? <Tag color="green">Đã thu</Tag>
+        : <Tag color="orange">Chưa thu</Tag>
+    },
     ...(statusFilter === 'PAID' ? [{
-      title: 'Trạng thái',
+      title: 'Thực hiện',
       dataIndex: 'status',
       key: 'status',
       align: 'center',
@@ -461,8 +469,11 @@ export default function CashierPage() {
   const accountNum = '2152486504';
   const accountName = 'TRAN HUU NAM';
 
-  const paidAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const unpaidAmount = selectedOrder ? Math.max(0, Number(selectedOrder.totalAmount) - paidAmount) : 0;
+  // Use item.isPaid as source of truth for per-item payment status
+  const paidItems = selectedOrder?.items?.filter(i => i.isPaid) || [];
+  const unpaidItems = selectedOrder?.items?.filter(i => !i.isPaid) || [];
+  const paidAmount = paidItems.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
+  const unpaidAmount = unpaidItems.reduce((sum, i) => sum + Number(i.price) * i.quantity, 0);
 
   const qrImageUrl = selectedOrder
     ? `https://img.vietqr.io/image/${bankCode}-${accountNum}-compact2.png?amount=${unpaidAmount}&addInfo=Thanh%20toan%20vien%20phi%20${selectedOrder.orderCode}&accountName=${encodeURIComponent(accountName)}`
@@ -564,8 +575,8 @@ export default function CashierPage() {
                     <ShoppingCartOutlined style={{ marginRight: 8, color: '#52c41a' }} />
                     Chi tiết hóa đơn y tế: {selectedOrder.orderCode}
                   </span>
-                  <Tag color={selectedOrder.status === 'PAID' ? 'green' : (selectedOrder.status === 'CANCELLED' ? 'red' : 'orange')} style={{ fontSize: 11, margin: 0 }}>
-                    {selectedOrder.status === 'PAID' ? 'ĐÃ THANH TOÁN' : (selectedOrder.status === 'CANCELLED' ? 'ĐÃ HỦY / HOÀN TIỀN' : 'CHƯA THANH TOÁN')}
+                  <Tag color={selectedOrder.items?.some(i => !i.isPaid) ? 'orange' : (selectedOrder.status === 'CANCELLED' ? 'red' : 'green')} style={{ fontSize: 11, margin: 0 }}>
+                    {selectedOrder.status === 'CANCELLED' ? 'ĐÃ HỦY / HOÀN TIỀN' : (selectedOrder.items?.some(i => !i.isPaid) ? 'CÓ DỊCH VỤ CHƯA THU' : 'ĐÃ THANH TOÁN ĐỦ')}
                   </Tag>
                 </div>
               }
@@ -612,9 +623,9 @@ export default function CashierPage() {
                     {Number(selectedOrder.totalAmount).toLocaleString('vi-VN')} đ
                   </Text>
                 </div>
-                {payments.length > 0 && (
+                {paidAmount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 13 }}>Đã thanh toán trước đó:</Text>
+                    <Text style={{ fontSize: 13 }}>Đã thanh toán ({paidItems.length} dịch vụ):</Text>
                     <Text type="success" strong style={{ fontSize: 14 }}>
                       -{paidAmount.toLocaleString('vi-VN')} đ
                     </Text>

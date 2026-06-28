@@ -771,11 +771,21 @@ export default function QueueDashboardPage() {
             <div style={{ background: '#fff', border: '1px solid #edf2f7', padding: '12px', borderRadius: '6px', fontSize: '12px' }}>
               <div style={{ fontWeight: 600, color: '#30456c', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>Dịch vụ chỉ định & Trạng thái thanh toán</span>
-                {selectedVisit.order ? (
-                  <Tag color={selectedVisit.order.status === 'PAID' ? 'green' : 'orange'} style={{ margin: 0, fontSize: '10px' }}>
-                    {selectedVisit.order.status === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN'}
-                  </Tag>
-                ) : (
+                {selectedVisit.order ? (() => {
+                  const items = selectedVisit.order.items || [];
+                  const paidCount = items.filter(i => i.isPaid).length;
+                  const totalCount = items.length;
+                  const allPaid = totalCount > 0 && paidCount === totalCount;
+                  const partialPaid = paidCount > 0 && paidCount < totalCount;
+                  return (
+                    <Tag
+                      color={allPaid ? 'green' : partialPaid ? 'blue' : 'orange'}
+                      style={{ margin: 0, fontSize: '10px' }}
+                    >
+                      {allPaid ? 'ĐÃ THANH TOÁN' : partialPaid ? `ĐÃ TT ${paidCount}/${totalCount}` : 'CHƯA THANH TOÁN'}
+                    </Tag>
+                  );
+                })() : (
                   <Tag color="red" style={{ margin: 0, fontSize: '10px' }}>CHƯA CÓ HÓA ĐƠN</Tag>
                 )}
               </div>
@@ -786,7 +796,7 @@ export default function QueueDashboardPage() {
                     <div key={item.id || idx} style={{ display: 'flex', justifyContent: 'space-between', background: '#f8fafc', padding: '6px 8px', borderRadius: 4 }}>
                       <span style={{ fontWeight: 500, color: '#262626' }}>{item.service?.name}</span>
                       <span style={{ fontSize: '11px' }}>
-                        {selectedVisit.order.status === 'PAID' ? (
+                        {item.isPaid ? (
                           <span style={{ color: '#52c41a', fontWeight: 600 }}>● Đã thanh toán</span>
                         ) : (
                           <span style={{ color: '#fa8c16', fontWeight: 600 }}>● Chưa thanh toán</span>
@@ -801,9 +811,9 @@ export default function QueueDashboardPage() {
                 </div>
               )}
               
-              {selectedVisit.order && selectedVisit.order.status === 'PENDING' && (
+              {selectedVisit.order && selectedVisit.order.items?.some(i => !i.isPaid) && (
                 <div style={{ marginTop: 10, padding: '8px 10px', background: '#fff2e6', border: '1px solid #ffd8bf', borderRadius: 4, color: '#d46b08', fontSize: '11px', lineHeight: '1.4' }}>
-                  ⚠️ <strong>Cảnh báo:</strong> Bệnh nhân chưa thanh toán. Vui lòng hướng dẫn bệnh nhân qua quầy thu ngân thanh toán trước khi điều phối vào phòng thực hiện CLS!
+                  ⚠️ <strong>Cảnh báo:</strong> Có dịch vụ chưa thanh toán. Vui lòng hướng dẫn bệnh nhân qua quầy thu ngân thanh toán trước khi điều phối vào phòng thực hiện CLS!
                 </div>
               )}
 
