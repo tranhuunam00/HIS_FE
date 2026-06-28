@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Row, Col, Card, Table, Button, Radio, Space, Tag,
   Typography, message, Input, Empty, Modal, Badge, Form, Alert,
-  Select
+  Select,
+  Divider
 } from 'antd';
 import {
   DollarOutlined, SearchOutlined, CreditCardOutlined,
@@ -919,7 +920,7 @@ export default function CashierPage() {
                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', fontSize: '13px', borderLeft: '3px solid #52c41a', margin: 0 }}>
                   Bệnh nhân: <strong>{selectedVisit.patient?.fullName?.toUpperCase()}</strong> (Mã LK: {selectedVisit.visitCode})
                 </div>
-                
+
                 <div style={{ background: '#fff', border: '1px solid #edf2f7', padding: '12px', borderRadius: '6px', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, color: '#30456c', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Dịch vụ chỉ định & Trạng thái thanh toán</span>
@@ -931,7 +932,7 @@ export default function CashierPage() {
                       <Tag color="red" style={{ margin: 0, fontSize: '10px' }}>CHƯA CÓ HÓA ĐƠN</Tag>
                     )}
                   </div>
-                  
+
                   {selectedOrder && selectedOrder.items?.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 150, overflowY: 'auto' }}>
                       {selectedOrder.items.map((item, idx) => (
@@ -952,7 +953,7 @@ export default function CashierPage() {
                       Chưa có dịch vụ chỉ định nào.
                     </div>
                   )}
-                  
+
                   {selectedOrder && selectedOrder.status === 'PENDING' && (
                     <div style={{ marginTop: 10, padding: '8px 10px', background: '#fff2e6', border: '1px solid #ffd8bf', borderRadius: 4, color: '#d46b08', fontSize: '11px', lineHeight: '1.4' }}>
                       ⚠️ <strong>Cảnh báo:</strong> Bệnh nhân chưa thanh toán. Vui lòng thực hiện thu tiền và hoàn tất hóa đơn trước khi điều phối vào phòng thực hiện CLS!
