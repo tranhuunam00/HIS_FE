@@ -70,4 +70,29 @@ export const authAdminService = {
     const res = await api.put(`/branches/${branchId}/allowed-ips`, ips);
     return res.data;
   },
+
+  getScopedPermissions: async () => {
+    const res = await api.get('/scoped-permissions/users');
+    return res.data;
+  },
+
+  saveRoleScopedPermission: async (roleId, data) => {
+    const res = await api.post(`/scoped-permissions/roles/${roleId}`, data);
+    return res.data;
+  },
+
+  getRoleScopedPermissions: async (roleId) => {
+    const res = await api.get(`/scoped-permissions/roles/${roleId}`);
+    return res.data;
+  },
+
+  saveUserCustomPermission: async (userId, data) => {
+    const res = await api.post(`/scoped-permissions/users/${userId}/custom`, data);
+    return res.data;
+  },
+
+  deleteScopedPermission: async (id) => {
+    const res = await api.delete(`/scoped-permissions/${id}`);
+    return res.data;
+  },
 };

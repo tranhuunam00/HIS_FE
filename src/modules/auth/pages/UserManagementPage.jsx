@@ -16,6 +16,8 @@ import {
   Row,
   Col,
   Typography,
+  Tooltip,
+  Checkbox,
 } from 'antd';
 import {
   PlusOutlined,
@@ -25,11 +27,15 @@ import {
   UnlockOutlined,
   SearchOutlined,
   UserOutlined,
+  GroupOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { authAdminService } from '../../../services/authAdminService';
 import { orgService } from '../../../services/orgService';
 import { staffService } from '../../../services/staffService';
 import UserFormModal from '../components/UserFormModal';
+import ScopedPermissionFormModal from '../components/ScopedPermissionFormModal';
+import RolePermissionMatrixModal from '../components/RolePermissionMatrixModal';
 import { EXCLUDE_ROLES_FILTER } from '../constants';
 
 const { Option } = Select;
@@ -61,6 +67,14 @@ export default function UserManagementPage() {
   const [lockUser, setLockUser] = useState(null);
   const [lockForm] = Form.useForm();
 
+  // Scoped Permissions states
+  const [scopedPermissions, setScopedPermissions] = useState([]);
+  const [permLoading, setPermLoading] = useState(false);
+  const [permSearchText, setPermSearchText] = useState('');
+  const [permBranchFilter, setPermBranchFilter] = useState('ALL');
+  const [addPermModalVisible, setAddPermModalVisible] = useState(false);
+  const [roleMatrixVisible, setRoleMatrixVisible] = useState(false);
+
   // Fetch initial configuration data (roles, branches, staff)
   useEffect(() => {
     fetchMetadata();
@@ -80,6 +94,133 @@ export default function UserManagementPage() {
       console.error(err);
       message.error('Không thể tải siêu dữ liệu hệ thống');
     }
+  };
+
+  const fetchScopedPermissions = async () => {
+    try {
+      setPermLoading(true);
+      const data = await authAdminService.getScopedPermissions();
+      setScopedPermissions(data);
+    } catch (err) {
+      console.error(err);
+      message.error('Không thể tải ma trận phân quyền');
+    } finally {
+      setPermLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'permissions') {
+      fetchScopedPermissions();
+    }
+  }, [activeTab]);
+
+  const renderPermissionCheckbox = (val, record, fieldName, userId) => {
+    const isInherited = record[`${fieldName}Inherited`];
+    
+    return (
+      <Tooltip title={isInherited ? `Kế thừa từ nhóm ${record.roleName || ''}` : "Quyền tùy biến riêng"}>
+        <Checkbox
+          checked={val}
+          disabled={isInherited}
+          style={{
+            transform: 'scale(1.05)',
+          }}
+          onChange={async (e) => {
+            try {
+              const checked = e.target.checked;
+              const payload = {
+                branchId: record.branchId,
+                [fieldName]: checked,
+              };
+              await authAdminService.saveUserCustomPermission(userId, payload);
+              message.success('Cập nhật quyền tùy biến thành công!');
+              fetchScopedPermissions();
+            } catch (err) {
+              console.error(err);
+              message.error('Lỗi khi cập nhật quyền');
+            }
+          }}
+        />
+      </Tooltip>
+    );
+  };
+
+  const handleDeleteUserScopeRow = async (record) => {
+    try {
+      await authAdminService.deleteScopedPermission(record.id);
+      message.success('Xóa dòng quyền tùy biến thành công!');
+      fetchScopedPermissions();
+    } catch (err) {
+      console.error(err);
+      message.error('Lỗi khi xóa dòng cấu hình quyền');
+    }
+  };
+
+  const expandedRowRender = (userRecord) => {
+    const rawPerms = userRecord.permissions || [];
+    const filteredPerms = permBranchFilter === 'ALL'
+      ? rawPerms
+      : rawPerms.filter(p => p.branchId === permBranchFilter);
+
+    const subColumns = [
+      {
+        title: 'Cơ sở',
+        dataIndex: 'branchName',
+        key: 'branchName',
+        width: '38%',
+        render: (text) => <span style={{ fontWeight: 500, color: '#434343' }}>{text}</span>,
+      },
+      { title: 'Xem', dataIndex: 'canView', key: 'canView', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canView', userRecord.userId) },
+      { title: 'Đọc', dataIndex: 'canRead', key: 'canRead', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canRead', userRecord.userId) },
+      { title: 'Duyệt', dataIndex: 'canApprove', key: 'canApprove', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canApprove', userRecord.userId) },
+      { title: 'H.Chẩn', dataIndex: 'canConsult', key: 'canConsult', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canConsult', userRecord.userId) },
+      { title: 'Hủy HC', dataIndex: 'canCancelConsult', key: 'canCancelConsult', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canCancelConsult', userRecord.userId) },
+      { title: 'Sửa', dataIndex: 'canEdit', key: 'canEdit', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canEdit', userRecord.userId) },
+      { title: 'Xóa', dataIndex: 'canDelete', key: 'canDelete', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canDelete', userRecord.userId) },
+      { title: 'HIS', dataIndex: 'canUpdateHis', key: 'canUpdateHis', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canUpdateHis', userRecord.userId) },
+      { title: 'C.Sẻ', dataIndex: 'canShare', key: 'canShare', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canShare', userRecord.userId) },
+      { title: 'T.Kê', dataIndex: 'canStats', key: 'canStats', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canStats', userRecord.userId) },
+      { title: 'Hủy D.', dataIndex: 'canCancelApprove', key: 'canCancelApprove', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canCancelApprove', userRecord.userId) },
+      { title: 'Xóa S.', dataIndex: 'canDeleteSeries', key: 'canDeleteSeries', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canDeleteSeries', userRecord.userId) },
+      { title: 'L.Sử', dataIndex: 'canViewHistory', key: 'canViewHistory', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canViewHistory', userRecord.userId) },
+      {
+        title: '',
+        key: 'action',
+        width: '5%',
+        align: 'center',
+        render: (_, record) => {
+          if (!record.isCustomOnly) {
+            return (
+              <Tooltip title="Dòng quyền này kế thừa từ Nhóm, chỉ có thể xóa trong cấu hình nhóm">
+                <Button type="text" disabled icon={<DeleteOutlined />} size="small" />
+              </Tooltip>
+            );
+          }
+          return (
+            <Popconfirm
+              title="Xác nhận xóa dòng cấu hình quyền custom này?"
+              onConfirm={() => handleDeleteUserScopeRow(record)}
+              okText="Xóa"
+              cancelText="Hủy"
+            >
+              <Button type="text" danger icon={<DeleteOutlined />} size="small" />
+            </Popconfirm>
+          );
+        }
+      }
+    ];
+
+    return (
+      <Table
+        columns={subColumns}
+        dataSource={filteredPerms}
+        rowKey="id"
+        pagination={false}
+        size="small"
+        style={{ margin: '8px 0', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}
+      />
+    );
   };
 
   // Tab 1: User list functions
@@ -356,6 +497,108 @@ export default function UserManagementPage() {
         </Card>
       ),
     },
+    {
+      key: 'permissions',
+      label: (
+        <span>
+          <GroupOutlined />
+          Ma trận phân quyền
+        </span>
+      ),
+      children: (
+        <Card
+          size="small"
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <Input
+                placeholder="Tìm tài khoản theo tên, email..."
+                value={permSearchText}
+                onChange={(e) => setPermSearchText(e.target.value)}
+                prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                style={{ width: 220 }}
+                size="small"
+              />
+              <span style={{ fontSize: 12, marginLeft: 8 }}>Cơ sở:</span>
+              <Select
+                size="small"
+                style={{ width: 220 }}
+                value={permBranchFilter}
+                onChange={setPermBranchFilter}
+              >
+                <Option value="ALL">Tất cả cơ sở</Option>
+                {branches.map((b) => (
+                  <Option key={b.id} value={b.id}>
+                    {b.name}
+                  </Option>
+                ))}
+              </Select>
+            </div>
+          }
+          extra={
+            <Space>
+              <Button
+                type="default"
+                icon={<GroupOutlined />}
+                onClick={() => setRoleMatrixVisible(true)}
+                size="small"
+              >
+                Phân quyền theo nhóm
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setAddPermModalVisible(true)}
+                size="small"
+              >
+                Thêm dòng quyền
+              </Button>
+            </Space>
+          }
+          styles={{ body: { padding: '0px' } }}
+        >
+          <Table
+            dataSource={scopedPermissions.filter(item => {
+              const term = permSearchText.toLowerCase();
+              if (!term) return true;
+              return (
+                item.username?.toLowerCase().includes(term) ||
+                item.email?.toLowerCase().includes(term)
+              );
+            })}
+            columns={[
+              {
+                title: 'Tên tài khoản',
+                dataIndex: 'username',
+                key: 'username',
+                width: '30%',
+                render: (text) => <strong style={{ color: '#1890ff' }}>{text}</strong>,
+              },
+              {
+                title: 'Email',
+                dataIndex: 'email',
+                key: 'email',
+                width: '40%',
+              },
+              {
+                title: 'Nhóm quyền',
+                dataIndex: 'roleName',
+                key: 'roleName',
+                width: '30%',
+                render: (text) => <Tag color="blue">{text}</Tag>,
+              },
+            ]}
+            rowKey="userId"
+            size="small"
+            loading={permLoading}
+            expandable={{
+              expandedRowRender,
+              rowExpandable: () => true,
+            }}
+            pagination={{ pageSize: 10, size: 'small' }}
+          />
+        </Card>
+      ),
+    },
   ];
 
   return (
@@ -433,6 +676,25 @@ export default function UserManagementPage() {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Scoped Permission Row Form Modal */}
+      <ScopedPermissionFormModal
+        visible={addPermModalVisible}
+        users={scopedPermissions}
+        roles={roles}
+        branches={branches}
+        onClose={() => setAddPermModalVisible(false)}
+        onRefresh={fetchScopedPermissions}
+      />
+
+      {/* Role Scoped Permission Matrix Modal */}
+      <RolePermissionMatrixModal
+        visible={roleMatrixVisible}
+        roles={roles}
+        branches={branches}
+        onClose={() => setRoleMatrixVisible(false)}
+        onRefreshParent={fetchScopedPermissions}
+      />
     </div>
   );
 }
