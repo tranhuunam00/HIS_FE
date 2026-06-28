@@ -129,6 +129,9 @@ export default function OrderManagementPage() {
   
   const [rooms, setRooms] = useState([]);
   const [doctors, setDoctors] = useState([]);
+  const [roomDoctors, setRoomDoctors] = useState([]);
+  const [loadingRoomDoctors, setLoadingRoomDoctors] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState(undefined);
   const [transferVisible, setTransferVisible] = useState(false);
   const [formTransfer] = Form.useForm();
   const [savingTransfer, setSavingTransfer] = useState(false);
@@ -359,13 +362,61 @@ export default function OrderManagementPage() {
     }
   };
 
+  const fetchDoctorsForRoom = async (roomId) => {
+    if (!roomId) {
+      setRoomDoctors([]);
+      return;
+    }
+    try {
+      setLoadingRoomDoctors(true);
+      const today = getTodayStr();
+      // 1. Fetch doctors assigned to this room
+      const roomStaffList = await staffService.getDoctorsByRoom(activeBranchId, roomId);
+      
+      // 2. Fetch today's attendance for each assigned doctor in parallel and filter
+      const checkedInDoctors = [];
+      await Promise.all(
+        roomStaffList.map(async (doc) => {
+          try {
+            const statusList = await attendanceService.getTodayStatus(doc.id, today);
+            const isDocCheckedIn = statusList.some(
+              (a) => a.status === 'CHECKED_IN' && !a.checkOutTime && a.isAcceptingPatients !== false
+            );
+            if (isDocCheckedIn) {
+              checkedInDoctors.push(doc);
+            }
+          } catch (err) {
+            console.warn(`Lỗi khi lấy trạng thái trực của bác sĩ ${doc.fullName}:`, err);
+          }
+        })
+      );
+      setRoomDoctors(checkedInDoctors);
+    } catch (err) {
+      console.error(err);
+      message.error('Không thể tải trạng thái điểm danh bác sĩ tại phòng này');
+    } finally {
+      setLoadingRoomDoctors(false);
+    }
+  };
+
   const handleOpenTransfer = (visit) => {
     formTransfer.resetFields();
+    
+    const initialRoomId = visit.currentRoomId || undefined;
+    setSelectedRoomId(initialRoomId);
+    
     formTransfer.setFieldsValue({
-      roomId: visit.currentRoomId || undefined,
+      roomId: initialRoomId,
       doctorId: visit.currentDoctorId || undefined,
       status: visit.status === 'ADMITTED' ? 'WAITING' : (visit.status === 'WAITING' ? 'WAITING' : visit.status),
     });
+    
+    if (initialRoomId) {
+      fetchDoctorsForRoom(initialRoomId);
+    } else {
+      setRoomDoctors([]);
+    }
+    
     setTransferVisible(true);
   };
 
@@ -936,7 +987,14 @@ export default function OrderManagementPage() {
             label="Phòng khám / Bộ phận cận lâm sàng đích:"
             rules={[{ required: true, message: 'Vui lòng chọn phòng điều phối đến' }]}
           >
-            <Select placeholder="Chọn phòng khám">
+            <Select 
+              placeholder="Chọn phòng khám"
+              onChange={(val) => {
+                setSelectedRoomId(val);
+                formTransfer.setFieldsValue({ doctorId: undefined });
+                fetchDoctorsForRoom(val);
+              }}
+            >
               {rooms.map((r) => (
                 <Option key={r.id} value={r.id}>{r.name} ({r.type === 'CLINIC' ? 'Phòng khám' : 'Cận lâm sàng'})</Option>
               ))}
@@ -947,9 +1005,20 @@ export default function OrderManagementPage() {
             name="doctorId"
             label="Bác sĩ nhận điều phối:"
           >
-            <Select placeholder="Bác sĩ nhận bệnh (Không bắt buộc)" allowClear>
-              {doctors.map((d) => (
-                <Option key={d.id} value={d.id}>{d.fullName}</Option>
+            <Select 
+              placeholder={
+                !selectedRoomId 
+                  ? "Vui lòng chọn phòng khám trước" 
+                  : (roomDoctors.length === 0 && !loadingRoomDoctors 
+                      ? "Không có bác sĩ trực tại phòng này" 
+                      : "Bác sĩ nhận bệnh (Không bắt buộc)")
+              } 
+              allowClear
+              disabled={!selectedRoomId}
+              loading={loadingRoomDoctors}
+            >
+              {roomDoctors.map((d) => (
+                <Option key={d.id} value={d.id}>{d.fullName} ({d.nickname || 'Không có biệt danh'})</Option>
               ))}
             </Select>
           </Form.Item>
