@@ -50,6 +50,8 @@ export default function CashierPage() {
   const [savingTransfer, setSavingTransfer] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [formTransfer] = Form.useForm();
+  const [payments, setPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
 
   useEffect(() => {
     fetchOrders(statusFilter);
@@ -211,9 +213,21 @@ export default function CashierPage() {
     }
   };
 
-  const handleSelectOrder = (order) => {
+  const handleSelectOrder = async (order) => {
     setSelectedOrder(order);
     setPaymentMethod('CASH');
+    setPayments([]);
+    if (order) {
+      try {
+        setLoadingPayments(true);
+        const paymentsList = await billingService.getPaymentsByOrder(order.id);
+        setPayments(paymentsList || []);
+      } catch (err) {
+        console.error('Error fetching payments:', err);
+      } finally {
+        setLoadingPayments(false);
+      }
+    }
   };
 
   const handlePayment = async () => {
@@ -222,7 +236,7 @@ export default function CashierPage() {
       setPaying(true);
       const res = await billingService.createPayment({
         orderId: selectedOrder.id,
-        amount: Number(selectedOrder.totalAmount),
+        amount: unpaidAmount,
         paymentMethod: paymentMethod,
       });
       message.success('Thanh toán thành công!');
@@ -447,8 +461,11 @@ export default function CashierPage() {
   const accountNum = '2152486504';
   const accountName = 'TRAN HUU NAM';
 
+  const paidAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const unpaidAmount = selectedOrder ? Math.max(0, Number(selectedOrder.totalAmount) - paidAmount) : 0;
+
   const qrImageUrl = selectedOrder
-    ? `https://img.vietqr.io/image/${bankCode}-${accountNum}-compact2.png?amount=${selectedOrder.totalAmount}&addInfo=Thanh%20toan%20vien%20phi%20${selectedOrder.orderCode}&accountName=${encodeURIComponent(accountName)}`
+    ? `https://img.vietqr.io/image/${bankCode}-${accountNum}-compact2.png?amount=${unpaidAmount}&addInfo=Thanh%20toan%20vien%20phi%20${selectedOrder.orderCode}&accountName=${encodeURIComponent(accountName)}`
     : '';
 
   return (
@@ -588,11 +605,28 @@ export default function CashierPage() {
                 size="small"
               />
 
-              <div style={{ textAlign: 'right', marginTop: 16, background: '#fafafa', padding: '10px 14px', borderRadius: 6 }}>
-                <Text style={{ fontSize: 14, marginRight: 8 }}>Tổng tiền hóa đơn:</Text>
-                <Text type="danger" strong style={{ fontSize: 20 }}>
-                  {Number(selectedOrder.totalAmount).toLocaleString('vi-VN')} đ
-                </Text>
+              <div style={{ marginTop: 16, background: '#fafafa', padding: '12px 14px', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13 }}>Tổng giá trị dịch vụ:</Text>
+                  <Text strong style={{ fontSize: 14 }}>
+                    {Number(selectedOrder.totalAmount).toLocaleString('vi-VN')} đ
+                  </Text>
+                </div>
+                {payments.length > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 13 }}>Đã thanh toán trước đó:</Text>
+                    <Text type="success" strong style={{ fontSize: 14 }}>
+                      -{paidAmount.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </div>
+                )}
+                <Divider style={{ margin: '4px 0' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 14, fontWeight: 600 }}>Cần thanh toán thêm:</Text>
+                  <Text type="danger" strong style={{ fontSize: 20 }}>
+                    {unpaidAmount.toLocaleString('vi-VN')} đ
+                  </Text>
+                </div>
               </div>
 
               {statusFilter === 'PENDING' && (
@@ -631,7 +665,7 @@ export default function CashierPage() {
                           <div>Ngân hàng: <strong>BIDV (Mã ngân hàng: 970418)</strong></div>
                           <div>Số tài khoản: <strong>2152486504</strong></div>
                           <div>Chủ tài khoản: <strong>TRAN HUU NAM</strong></div>
-                          <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{Number(selectedOrder.totalAmount).toLocaleString('vi-VN')}đ</strong></div>
+                          <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{unpaidAmount.toLocaleString('vi-VN')}đ</strong></div>
                           <div>Nội dung chuyển khoản: <strong>Thanh toan vien phi ${selectedOrder.orderCode}</strong></div>
                         </div>
                       </div>
@@ -662,10 +696,10 @@ export default function CashierPage() {
                             handlePayment();
                           }
                         }}
-                        disabled={activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment')}
-                        style={{ backgroundColor: (activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment')) ? undefined : '#52c41a', borderColor: (activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment')) ? undefined : '#52c41a', height: 42, padding: '0 24px' }}
+                        disabled={activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment') || unpaidAmount === 0}
+                        style={{ backgroundColor: (activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment') || unpaidAmount === 0) ? undefined : '#52c41a', borderColor: (activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment') || unpaidAmount === 0) ? undefined : '#52c41a', height: 42, padding: '0 24px' }}
                       >
-                        {paymentMethod === 'TRANSFER' ? 'Hiển thị mã QR & Thu tiền' : 'Xác nhận thanh toán & In hóa đơn'}
+                        {unpaidAmount === 0 ? 'Đã thu đủ tiền' : (paymentMethod === 'TRANSFER' ? 'Hiển thị mã QR & Thu tiền' : 'Xác nhận thanh toán & In hóa đơn')}
                       </Button>
                     </>
                   ) : (
@@ -827,8 +861,8 @@ export default function CashierPage() {
                   setShowQRModal(false);
                   handlePayment();
                 }}
-                disabled={activeAttendances.length === 0}
-                style={{ backgroundColor: activeAttendances.length === 0 ? undefined : '#52c41a', borderColor: activeAttendances.length === 0 ? undefined : '#52c41a' }}
+                disabled={activeAttendances.length === 0 || unpaidAmount === 0}
+                style={{ backgroundColor: (activeAttendances.length === 0 || unpaidAmount === 0) ? undefined : '#52c41a', borderColor: (activeAttendances.length === 0 || unpaidAmount === 0) ? undefined : '#52c41a' }}
               >
                 Xác nhận đã nhận chuyển khoản & In hóa đơn
               </Button>
