@@ -6,6 +6,7 @@ import { roomService } from '../../../services/roomService';
 import { staffService } from '../../../services/staffService';
 import { billingService } from '../../../services/billingService';
 import { attendanceService } from '../../../services/attendanceService';
+import { authAdminService } from '../../../services/authAdminService';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -30,11 +31,13 @@ export default function QueueDashboardPage() {
   const [formVitals] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
+  const [currentUser, setCurrentUser] = useState(null);
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
     fetchVisits();
     loadMetadata();
+    fetchUser();
     
     // Setup interval for simulated real-time updates (every 10 seconds)
     const interval = setInterval(() => {
@@ -43,6 +46,23 @@ export default function QueueDashboardPage() {
 
     return () => clearInterval(interval);
   }, [activeBranchId]);
+
+  const fetchUser = async () => {
+    try {
+      const user = await authAdminService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const hasBranchPermission = (permissionField) => {
+    if (!currentUser) return false;
+    if (currentUser.roleName === 'SUPER_ADMIN' || currentUser.username === 'admin' || currentUser.email === 'admin@hisdaocare.com') return true;
+    if (!activeBranchId) return false;
+    const branchPerm = currentUser.scopedPermissions?.find(p => p.branchId === activeBranchId);
+    return branchPerm ? !!branchPerm[permissionField] : false;
+  };
 
   const fetchVisits = async () => {
     if (!activeBranchId) return;
@@ -504,24 +524,28 @@ export default function QueueDashboardPage() {
             </Button>
           ) : <div />}
           <div style={{ display: 'flex', gap: '4px' }}>
-            <Button
-              size="small"
-              icon={<HeartOutlined />}
-              onClick={() => handleOpenVitals(visit)}
-              style={{ color: '#ef4444', borderColor: '#fca5a5', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
-            >
-              Sinh hieu
-            </Button>
-            <Button
-              size="small"
-              type="primary"
-              ghost
-              icon={<ArrowRightOutlined />}
-              onClick={() => handleOpenTransfer(visit)}
-              style={{ color: '#059669', borderColor: '#a7f3d0', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
-            >
-              Dieu phoi
-            </Button>
+            {hasBranchPermission('canCheckIn') && (
+              <>
+                <Button
+                  size="small"
+                  icon={<HeartOutlined />}
+                  onClick={() => handleOpenVitals(visit)}
+                  style={{ color: '#ef4444', borderColor: '#fca5a5', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
+                >
+                  Sinh hieu
+                </Button>
+                <Button
+                  size="small"
+                  type="primary"
+                  ghost
+                  icon={<ArrowRightOutlined />}
+                  onClick={() => handleOpenTransfer(visit)}
+                  style={{ color: '#059669', borderColor: '#a7f3d0', fontSize: '10px', borderRadius: '4px', padding: '0 6px', height: '22px' }}
+                >
+                  Dieu phoi
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </Card>

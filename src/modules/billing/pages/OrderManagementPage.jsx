@@ -194,6 +194,14 @@ export default function OrderManagementPage() {
     }
   };
 
+  const hasBranchPermission = (permissionField) => {
+    if (!currentUser) return false;
+    if (currentUser.roleName === 'SUPER_ADMIN' || currentUser.username === 'admin' || currentUser.email === 'admin@hisdaocare.com') return true;
+    if (!activeBranchId) return false;
+    const branchPerm = currentUser.scopedPermissions?.find(p => p.branchId === activeBranchId);
+    return branchPerm ? !!branchPerm[permissionField] : false;
+  };
+
   const fetchVisits = async () => {
     if (!activeBranchId || !currentUser) return;
     try {
@@ -619,7 +627,7 @@ export default function OrderManagementPage() {
             </Space>
           );
         }
-        if (record.status === 'COMPLETED') {
+        if (record.status === 'COMPLETED' && hasBranchPermission('canExecuteLaboratory')) {
           if (record.resultStatus === 'PENDING') {
             return (
               <Tooltip title="Viết phiếu kết quả">
@@ -652,8 +660,8 @@ export default function OrderManagementPage() {
     }
   ];
 
-  const canAccept = selectedVisit && ['WAITING_CLINICAL_EXAM', 'WAITING_CONCLUSION', 'WAITING_SERVICE'].includes(selectedVisit.status);
-  const canComplete = selectedVisit && ['IN_CLINICAL_EXAM', 'IN_CONCLUSION'].includes(selectedVisit.status);
+  const canAccept = selectedVisit && ['WAITING_CLINICAL_EXAM', 'WAITING_CONCLUSION', 'WAITING_SERVICE'].includes(selectedVisit.status) && hasBranchPermission('canPerformExam');
+  const canComplete = selectedVisit && ['IN_CLINICAL_EXAM', 'IN_CONCLUSION'].includes(selectedVisit.status) && hasBranchPermission('canConcludeExam');
 
   return (
     <div style={{ padding: 16 }}>
@@ -889,7 +897,7 @@ export default function OrderManagementPage() {
               <Divider style={{ margin: '16px 0' }} />
 
               {/* Add service form */}
-              {order?.status !== 'PAID' ? (
+              {order?.status !== 'PAID' && hasBranchPermission('canOrderServices') ? (
                 <Card
                   title={<span style={{ fontSize: 12, fontWeight: 600 }}>Thêm dịch vụ khám mới</span>}
                   type="inner"

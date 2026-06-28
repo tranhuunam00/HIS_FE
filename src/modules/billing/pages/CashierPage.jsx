@@ -1,13 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import {
   Row, Col, Card, Table, Button, Radio, Space, Tag,
-  Typography, message, Input, Empty, Modal, Badge
+  Typography, message, Input, Empty, Modal, Badge, Form, Alert,
+  Select
 } from 'antd';
 import {
   DollarOutlined, SearchOutlined, CreditCardOutlined,
-  PrinterOutlined, ShoppingCartOutlined, QrcodeOutlined
+  PrinterOutlined, ShoppingCartOutlined, QrcodeOutlined,
+  CompassOutlined
 } from '@ant-design/icons';
 import { billingService } from '../../../services/billingService';
+import { authAdminService } from '../../../services/authAdminService';
+import { attendanceService } from '../../../services/attendanceService';
+import { roomService } from '../../../services/roomService';
+import { staffService } from '../../../services/staffService';
+import { visitService } from '../../../services/visitService';
 
 const { Title, Text } = Typography;
 
@@ -19,9 +26,9 @@ export default function CashierPage() {
 
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [paying, setPaying] = useState(false);
-  
+
   const [showQRModal, setShowQRModal] = useState(false);
-  
+
   // Status filter for cashier list
   const [statusFilter, setStatusFilter] = useState('PENDING'); // PENDING | PAID
   const [refundModalVisible, setRefundModalVisible] = useState(false);
@@ -29,20 +36,161 @@ export default function CashierPage() {
   const [refundReason, setRefundReason] = useState('');
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('CASH');
   const [refundLoading, setRefundLoading] = useState(false);
-  
+
   const activeBranchId = localStorage.getItem('activeBranchId');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeAttendances, setActiveAttendances] = useState([]);
+
+  // Coordination states
+  const [rooms, setRooms] = useState([]);
+  const [roomDoctors, setRoomDoctors] = useState([]);
+  const [loadingRoomDoctors, setLoadingRoomDoctors] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState(undefined);
+  const [transferVisible, setTransferVisible] = useState(false);
+  const [savingTransfer, setSavingTransfer] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState(null);
+  const [formTransfer] = Form.useForm();
 
   useEffect(() => {
     fetchOrders(statusFilter);
+    loadUserProfile();
+    loadRooms();
 
     // Listen for branch changes
     const handleBranchChange = () => {
       setSelectedOrder(null);
       fetchOrders(statusFilter);
+      loadUserProfile();
+      loadRooms();
     };
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, [statusFilter]);
+
+  const loadUserProfile = async () => {
+    try {
+      const user = await authAdminService.getCurrentUser();
+      setCurrentUser(user);
+      if (user.staff) {
+        const today = new Date().toISOString().split('T')[0];
+        const status = await attendanceService.getTodayStatus(user.staff.id, today);
+        setActiveAttendances(status.filter(a => a.status === 'CHECKED_IN'));
+      }
+    } catch (err) {
+      console.error('Error loading user profile:', err);
+    }
+  };
+
+  const hasBranchPermission = (permissionField) => {
+    if (!currentUser) return false;
+    if (currentUser.roleName === 'SUPER_ADMIN' || currentUser.username === 'admin' || currentUser.email === 'admin@hisdaocare.com') return true;
+    if (!activeBranchId) return false;
+    const branchPerm = currentUser.scopedPermissions?.find(p => p.branchId === activeBranchId);
+    return branchPerm ? !!branchPerm[permissionField] : false;
+  };
+
+  const loadRooms = async () => {
+    if (!activeBranchId) return;
+    try {
+      const roomList = await roomService.getRooms(activeBranchId);
+      setRooms(roomList.filter((r) => r.isActive));
+    } catch (err) {
+      console.error('Error loading rooms:', err);
+    }
+  };
+
+  const fetchDoctorsForRoom = async (roomId) => {
+    if (!roomId) {
+      setRoomDoctors([]);
+      return;
+    }
+    try {
+      setLoadingRoomDoctors(true);
+      const today = new Date().toISOString().split('T')[0];
+      const roomStaffList = await staffService.getDoctorsByRoom(activeBranchId, roomId);
+      const checkedInDoctors = [];
+      await Promise.all(
+        roomStaffList.map(async (doc) => {
+          try {
+            const statusList = await attendanceService.getTodayStatus(doc.id, today);
+            const isDocCheckedIn = statusList.some(
+              (a) => a.status === 'CHECKED_IN' && !a.checkOutTime && a.isAcceptingPatients !== false
+            );
+            if (isDocCheckedIn) {
+              checkedInDoctors.push(doc);
+            }
+          } catch (err) {
+            console.warn(`Lỗi khi lấy trạng thái trực của bác sĩ ${doc.fullName}:`, err);
+          }
+        })
+      );
+      setRoomDoctors(checkedInDoctors);
+    } catch (err) {
+      console.error(err);
+      message.error('Không thể tải trạng thái điểm danh bác sĩ tại phòng này');
+    } finally {
+      setLoadingRoomDoctors(false);
+    }
+  };
+
+  const handleOpenTransfer = (visit) => {
+    if (!visit) return;
+    setSelectedVisit(visit);
+    formTransfer.resetFields();
+
+    const initialRoomId = visit.currentRoomId || undefined;
+    setSelectedRoomId(initialRoomId);
+
+    formTransfer.setFieldsValue({
+      roomId: initialRoomId,
+      doctorId: visit.currentDoctorId || undefined,
+      status: visit.status === 'ADMITTED' ? 'WAITING' : (visit.status === 'WAITING' ? 'WAITING' : visit.status),
+    });
+
+    if (initialRoomId) {
+      fetchDoctorsForRoom(initialRoomId);
+    } else {
+      setRoomDoctors([]);
+    }
+
+    setTransferVisible(true);
+  };
+
+  const handleSaveTransfer = async () => {
+    if (!selectedVisit) return;
+    try {
+      setSavingTransfer(true);
+      const values = await formTransfer.validateFields();
+
+      const targetRoom = rooms.find(r => r.id === values.roomId);
+      let status = values.status;
+
+      if (targetRoom && targetRoom.type === 'CLINIC') {
+        if (values.status === 'WAITING' || !values.status) {
+          status = 'WAITING_CLINICAL_EXAM';
+        }
+      } else if (targetRoom && targetRoom.type !== 'CLINIC') {
+        if (values.status === 'WAITING' || !values.status) {
+          status = 'WAITING_SERVICE';
+        }
+      }
+
+      await visitService.transferRoom(selectedVisit.id, {
+        roomId: values.roomId,
+        doctorId: values.doctorId,
+        status: status
+      });
+
+      message.success('Điều phối chuyển phòng thành công!');
+      setTransferVisible(false);
+      fetchOrders(statusFilter);
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Chuyển phòng thất bại. Vui lòng kiểm tra lịch trực/điểm danh của bác sĩ.');
+    } finally {
+      setSavingTransfer(false);
+    }
+  };
 
   const fetchOrders = async (status) => {
     try {
@@ -78,12 +226,26 @@ export default function CashierPage() {
         paymentMethod: paymentMethod,
       });
       message.success('Thanh toán thành công!');
-      
+
       // Auto-trigger printing receipt
       handlePrintInvoice(selectedOrder, [res]);
-      
+
+      const paidVisit = selectedOrder.visit;
       setSelectedOrder(null);
       fetchOrders(statusFilter);
+
+      // Auto-open transfer/coordination modal if visit is available
+      if (paidVisit) {
+        setTimeout(async () => {
+          try {
+            const freshVisit = await visitService.getVisitById(paidVisit.id);
+            handleOpenTransfer(freshVisit);
+          } catch (err) {
+            console.warn('Could not load fresh visit for auto-transfer:', err);
+            handleOpenTransfer(paidVisit);
+          }
+        }, 300);
+      }
     } catch (err) {
       console.error(err);
       message.error(err.response?.data?.message || 'Thanh toán thất bại');
@@ -112,12 +274,12 @@ export default function CashierPage() {
 
       message.success('Hoàn trả tiền dịch vụ thành công!');
       setRefundModalVisible(false);
-      
+
       // Refresh list
       const updatedOrders = await billingService.getOrders();
       const filtered = updatedOrders.filter(o => o.status === 'PAID' || o.status === 'CANCELLED');
       setOrders(filtered);
-      
+
       // Update selected order view
       const freshOrder = filtered.find(o => o.id === selectedOrder.id);
       setSelectedOrder(freshOrder || null);
@@ -149,7 +311,7 @@ export default function CashierPage() {
     `).join('') || '';
 
     const pMethodStr = paymentsList[0]?.paymentMethod === 'TRANSFER' ? 'Chuyển khoản' :
-                       paymentsList[0]?.paymentMethod === 'CARD' ? 'Thẻ ngân hàng' : 'Tiền mặt';
+      paymentsList[0]?.paymentMethod === 'CARD' ? 'Thẻ ngân hàng' : 'Tiền mặt';
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -285,7 +447,7 @@ export default function CashierPage() {
   const accountNum = '2152486504';
   const accountName = 'TRAN HUU NAM';
 
-  const qrImageUrl = selectedOrder 
+  const qrImageUrl = selectedOrder
     ? `https://img.vietqr.io/image/${bankCode}-${accountNum}-compact2.png?amount=${selectedOrder.totalAmount}&addInfo=Thanh%20toan%20vien%20phi%20${selectedOrder.orderCode}&accountName=${encodeURIComponent(accountName)}`
     : '';
 
@@ -406,6 +568,16 @@ export default function CashierPage() {
                 </Row>
               </div>
 
+              {activeAttendances.length === 0 && (
+                <Alert
+                  message="Chưa check-in ca trực"
+                  description="Bạn cần điểm danh check-in ca trực hôm nay để thực hiện thu tiền."
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+
               {/* Items List Table */}
               <Title level={5} style={{ margin: '8px 0', fontSize: 13 }}>Danh sách dịch vụ sử dụng</Title>
               <Table
@@ -483,10 +655,17 @@ export default function CashierPage() {
                         type="primary"
                         size="large"
                         loading={paying}
-                        onClick={handlePayment}
-                        style={{ backgroundColor: '#52c41a', borderColor: '#52c41a', height: 42, padding: '0 24px' }}
+                        onClick={() => {
+                          if (paymentMethod === 'TRANSFER') {
+                            setShowQRModal(true);
+                          } else {
+                            handlePayment();
+                          }
+                        }}
+                        disabled={activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment')}
+                        style={{ backgroundColor: (activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment')) ? undefined : '#52c41a', borderColor: (activeAttendances.length === 0 || !hasBranchPermission('canCollectPayment')) ? undefined : '#52c41a', height: 42, padding: '0 24px' }}
                       >
-                        Xác nhận thanh toán & In hóa đơn
+                        {paymentMethod === 'TRANSFER' ? 'Hiển thị mã QR & Thu tiền' : 'Xác nhận thanh toán & In hóa đơn'}
                       </Button>
                     </>
                   ) : (
@@ -497,7 +676,17 @@ export default function CashierPage() {
                       >
                         In lại hóa đơn
                       </Button>
-                      {selectedOrder.items?.some(item => item.status === 'PENDING') && (
+                      <Button
+                        type="primary"
+                        ghost
+                        icon={<CompassOutlined />}
+                        onClick={() => handleOpenTransfer(selectedOrder.visit)}
+                        disabled={!selectedOrder.visit}
+                        style={{ borderColor: '#52c41a', color: '#52c41a' }}
+                      >
+                        Điều phối phòng
+                      </Button>
+                      {hasBranchPermission('canRefundPayment') && selectedOrder.items?.some(item => item.status === 'PENDING') && (
                         <Button
                           type="primary"
                           danger
@@ -622,6 +811,125 @@ export default function CashierPage() {
               </div>
             </Modal>
           )}
+
+          {/* VietQR Modal */}
+          <Modal
+            title={<strong style={{ color: '#1890ff', fontSize: 16 }}>Quét mã VietQR để thanh toán</strong>}
+            open={showQRModal}
+            onCancel={() => setShowQRModal(false)}
+            footer={[
+              <Button key="close" onClick={() => setShowQRModal(false)}>Đóng</Button>,
+              <Button
+                key="pay"
+                type="primary"
+                loading={paying}
+                onClick={() => {
+                  setShowQRModal(false);
+                  handlePayment();
+                }}
+                disabled={activeAttendances.length === 0}
+                style={{ backgroundColor: activeAttendances.length === 0 ? undefined : '#52c41a', borderColor: activeAttendances.length === 0 ? undefined : '#52c41a' }}
+              >
+                Xác nhận đã nhận chuyển khoản & In hóa đơn
+              </Button>
+            ]}
+            width={420}
+            bodyStyle={{ textAlign: 'center', padding: '12px' }}
+          >
+            {selectedOrder && (
+              <div>
+                <img
+                  src={qrImageUrl}
+                  alt="VietQR"
+                  style={{ width: 200, height: 200, margin: '0 auto 12px auto', display: 'block', border: '1px solid #d9d9d9', padding: 4, borderRadius: 6 }}
+                />
+                <div style={{ textAlign: 'left', background: '#f5f5f5', padding: '12px', borderRadius: 6, fontSize: '12px', lineHeight: '1.6' }}>
+                  <div>Ngân hàng: <strong>BIDV (Mã: 970418)</strong></div>
+                  <div>Số tài khoản: <strong>2152486504</strong></div>
+                  <div>Chủ tài khoản: <strong>TRAN HUU NAM</strong></div>
+                  <div>Số tiền: <strong style={{ color: '#ff4d4f' }}>{Number(selectedOrder.totalAmount).toLocaleString('vi-VN')}đ</strong></div>
+                  <div style={{ marginTop: 4 }}>Nội dung CK: <strong style={{ color: '#059669' }}>Thanh toan vien phi {selectedOrder.orderCode}</strong></div>
+                </div>
+              </div>
+            )}
+          </Modal>
+
+          {/* Transfer Room Modal */}
+          <Modal
+            title={
+              <Title level={4} style={{ margin: 0, paddingBottom: 8, borderBottom: '1px solid #f0f0f0', fontSize: 16 }}>
+                Điều phối Phân phòng & Bác sĩ thực hiện
+              </Title>
+            }
+            open={transferVisible}
+            onCancel={() => setTransferVisible(false)}
+            onOk={handleSaveTransfer}
+            confirmLoading={savingTransfer}
+            okText="Xác nhận điều phối"
+            cancelText="Đóng"
+            width={450}
+          >
+            {selectedVisit && (
+              <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', borderLeft: '3px solid #52c41a' }}>
+                Bệnh nhân: <strong>{selectedVisit.patient?.fullName?.toUpperCase()}</strong> (Mã LK: {selectedVisit.visitCode})
+              </div>
+            )}
+            <Form form={formTransfer} layout="vertical" size="small">
+              <Form.Item
+                name="roomId"
+                label="Phòng khám / Bộ phận cận lâm sàng đích:"
+                rules={[{ required: true, message: 'Vui lòng chọn phòng điều phối đến' }]}
+              >
+                <Select
+                  placeholder="Chọn phòng khám"
+                  onChange={(val) => {
+                    setSelectedRoomId(val);
+                    formTransfer.setFieldsValue({ doctorId: undefined });
+                    fetchDoctorsForRoom(val);
+                  }}
+                >
+                  {rooms.map((r) => (
+                    <Option key={r.id} value={r.id}>{r.name} ({r.type === 'CLINIC' ? 'Phòng khám' : 'Cận lâm sàng'})</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="doctorId"
+                label="Bác sĩ nhận điều phối:"
+              >
+                <Select
+                  placeholder={
+                    !selectedRoomId
+                      ? "Vui lòng chọn phòng khám trước"
+                      : (roomDoctors.length === 0 && !loadingRoomDoctors
+                        ? "Không có bác sĩ trực tại phòng này"
+                        : "Bác sĩ nhận bệnh (Không bắt buộc)")
+                  }
+                  allowClear
+                  disabled={!selectedRoomId}
+                  loading={loadingRoomDoctors}
+                >
+                  {roomDoctors.map((d) => (
+                    <Option key={d.id} value={d.id}>{d.fullName} ({d.nickname || 'Không có biệt danh'})</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="status"
+                label="Trạng thái hàng đợi đích:"
+                initialValue="WAITING"
+              >
+                <Select placeholder="Trạng thái hàng đợi">
+                  <Option value="WAITING">Chờ khám / Chờ dịch vụ (Mặc định)</Option>
+                  <Option value="WAITING_CLINICAL_EXAM">Chờ khám lâm sàng</Option>
+                  <Option value="WAITING_SERVICE">Chờ làm dịch vụ</Option>
+                  <Option value="WAITING_CONCLUSION">Chờ kết luận</Option>
+                </Select>
+              </Form.Item>
+            </Form>
+          </Modal>
         </Col>
       </Row>
     </div>

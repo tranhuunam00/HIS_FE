@@ -6,6 +6,7 @@ import { patientService } from '../../../services/patientService';
 import { roomService } from '../../../services/roomService';
 import { staffService } from '../../../services/staffService';
 import { medicalService } from '../../../services/medicalService';
+import { authAdminService } from '../../../services/authAdminService';
 import CheckInModal from '../components/CheckInModal';
 import dayjs from 'dayjs';
 
@@ -44,11 +45,30 @@ export default function AppointmentManagementPage() {
   const [isExistingPatient, setIsExistingPatient] = useState(null);
   const [foundPatientId, setFoundPatientId] = useState(null);
 
+  const [currentUser, setCurrentUser] = useState(null);
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
     fetchAppointments();
+    fetchUser();
   }, [filterDate, filterStatus]);
+
+  const fetchUser = async () => {
+    try {
+      const user = await authAdminService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const hasBranchPermission = (permissionField) => {
+    if (!currentUser) return false;
+    if (currentUser.roleName === 'SUPER_ADMIN' || currentUser.username === 'admin' || currentUser.email === 'admin@hisdaocare.com') return true;
+    if (!activeBranchId) return false;
+    const branchPerm = currentUser.scopedPermissions?.find(p => p.branchId === activeBranchId);
+    return branchPerm ? !!branchPerm[permissionField] : false;
+  };
 
   useEffect(() => {
     if (editorVisible) {
@@ -322,34 +342,40 @@ export default function AppointmentManagementPage() {
           <Space size="small">
             {isEditable && (
               <>
-                <Tooltip title="Đón tiếp bệnh nhân">
-                  <Button
-                    type="primary"
-                    icon={<MedicineBoxOutlined />}
-                    onClick={() => handleCheckIn(record)}
-                    size="small"
-                    style={{ backgroundColor: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center' }}
-                  >
-                    Tiếp nhận
-                  </Button>
-                </Tooltip>
-                <Tooltip title="Chỉnh sửa lịch hẹn">
-                  <Button
-                    type="text"
-                    icon={<EditOutlined />}
-                    onClick={() => handleEdit(record)}
-                    size="small"
-                  />
-                </Tooltip>
-                <Tooltip title="Hủy cuộc hẹn">
-                  <Button
-                    type="text"
-                    danger
-                    icon={<CloseCircleOutlined />}
-                    onClick={() => handleCancelAppointment(record)}
-                    size="small"
-                  />
-                </Tooltip>
+                {hasBranchPermission('canCheckIn') && (
+                  <Tooltip title="Đón tiếp bệnh nhân">
+                    <Button
+                      type="primary"
+                      icon={<MedicineBoxOutlined />}
+                      onClick={() => handleCheckIn(record)}
+                      size="small"
+                      style={{ backgroundColor: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center' }}
+                    >
+                      Tiếp nhận
+                    </Button>
+                  </Tooltip>
+                )}
+                {hasBranchPermission('canManageAppointment') && (
+                  <>
+                    <Tooltip title="Chỉnh sửa lịch hẹn">
+                      <Button
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={() => handleEdit(record)}
+                        size="small"
+                      />
+                    </Tooltip>
+                    <Tooltip title="Hủy cuộc hẹn">
+                      <Button
+                        type="text"
+                        danger
+                        icon={<CloseCircleOutlined />}
+                        onClick={() => handleCancelAppointment(record)}
+                        size="small"
+                      />
+                    </Tooltip>
+                  </>
+                )}
               </>
             )}
             {!isEditable && <span style={{ fontSize: '11px', color: '#8c8c8c' }}>Không thể chỉnh sửa</span>}
@@ -368,15 +394,17 @@ export default function AppointmentManagementPage() {
             Đặt lịch hẹn khám trước cho khách hàng, theo dõi danh sách lịch hẹn trong ngày và thực hiện tiếp đón.
           </Paragraph>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-          size="small"
-          style={{ backgroundColor: '#059669', borderColor: '#059669' }}
-        >
-          Đặt lịch hẹn
-        </Button>
+        {hasBranchPermission('canManageAppointment') && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAdd}
+            size="small"
+            style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+          >
+            Đặt lịch hẹn
+          </Button>
+        )}
       </div>
 
       <Card size="small" style={{ maxWidth: 1200, margin: '0 auto', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>

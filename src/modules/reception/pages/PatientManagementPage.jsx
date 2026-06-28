@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Card, Input, Space, Tag, Modal, Form, Select, DatePicker, Typography, message, Tooltip, Row, Col, Divider } from 'antd';
 import { PlusOutlined, SearchOutlined, ScanOutlined, EditOutlined, MedicineBoxOutlined } from '@ant-design/icons';
 import { patientService } from '../../../services/patientService';
+import { authAdminService } from '../../../services/authAdminService';
 import CheckInModal from '../components/CheckInModal';
 import dayjs from 'dayjs';
 
@@ -22,11 +23,30 @@ export default function PatientManagementPage() {
   const [checkInVisible, setCheckInVisible] = useState(false);
   const [checkInPatient, setCheckInPatient] = useState(null);
 
+  const [currentUser, setCurrentUser] = useState(null);
   const activeBranchId = localStorage.getItem('activeBranchId');
 
   useEffect(() => {
     fetchPatients();
+    fetchUser();
   }, []);
+
+  const fetchUser = async () => {
+    try {
+      const user = await authAdminService.getCurrentUser();
+      setCurrentUser(user);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const hasBranchPermission = (permissionField) => {
+    if (!currentUser) return false;
+    if (currentUser.roleName === 'SUPER_ADMIN' || currentUser.username === 'admin' || currentUser.email === 'admin@hisdaocare.com') return true;
+    if (!activeBranchId) return false;
+    const branchPerm = currentUser.scopedPermissions?.find(p => p.branchId === activeBranchId);
+    return branchPerm ? !!branchPerm[permissionField] : false;
+  };
 
   const fetchPatients = async (query = '') => {
     try {
@@ -176,25 +196,29 @@ export default function PatientManagementPage() {
       key: 'actions',
       render: (_, record) => (
         <Space size="small">
-          <Tooltip title="Chỉnh sửa hồ sơ">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-              size="small"
-            />
-          </Tooltip>
-          <Tooltip title="Đón tiếp khám ngay (Check-in)">
-            <Button
-              type="primary"
-              icon={<MedicineBoxOutlined />}
-              onClick={() => handleCheckIn(record)}
-              size="small"
-              style={{ backgroundColor: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center' }}
-            >
-              Tiếp nhận
-            </Button>
-          </Tooltip>
+          {hasBranchPermission('canUpdatePatient') && (
+            <Tooltip title="Chỉnh sửa hồ sơ">
+              <Button
+                type="text"
+                icon={<EditOutlined />}
+                onClick={() => handleEdit(record)}
+                size="small"
+              />
+            </Tooltip>
+          )}
+          {hasBranchPermission('canCheckIn') && (
+            <Tooltip title="Đón tiếp khám ngay (Check-in)">
+              <Button
+                type="primary"
+                icon={<MedicineBoxOutlined />}
+                onClick={() => handleCheckIn(record)}
+                size="small"
+                style={{ backgroundColor: '#059669', borderColor: '#059669', display: 'inline-flex', alignItems: 'center' }}
+              >
+                Tiếp nhận
+              </Button>
+            </Tooltip>
+          )}
         </Space>
       ),
     },
@@ -209,15 +233,17 @@ export default function PatientManagementPage() {
             Quản lý thông tin hồ sơ y tế hành chính của khách hàng, tích hợp đón tiếp nhanh và điều phối khám chữa bệnh.
           </Paragraph>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleAdd}
-          size="small"
-          style={{ backgroundColor: '#059669', borderColor: '#059669' }}
-        >
-          Thêm bệnh nhân
-        </Button>
+        {hasBranchPermission('canRegisterPatient') && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAdd}
+            size="small"
+            style={{ backgroundColor: '#059669', borderColor: '#059669' }}
+          >
+            Thêm bệnh nhân
+          </Button>
+        )}
       </div>
 
       <Card size="small" style={{ maxWidth: 1200, margin: '0 auto', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
@@ -265,15 +291,17 @@ export default function PatientManagementPage() {
               </Tag>
             )}
           </div>
-          <Button
-            type="dashed"
-            icon={<ScanOutlined />}
-            size="small"
-            onClick={handleSimulateQRScan}
-            style={{ color: '#059669', borderColor: '#059669' }}
-          >
-            Quét CCCD (Demo)
-          </Button>
+          {hasBranchPermission('canRegisterPatient') && (
+            <Button
+              type="dashed"
+              icon={<ScanOutlined />}
+              size="small"
+              onClick={handleSimulateQRScan}
+              style={{ color: '#059669', borderColor: '#059669' }}
+            >
+              Quét CCCD (Demo)
+            </Button>
+          )}
         </div>
 
         {(selectedPatient?.phone?.startsWith('GOOGLE-') || selectedPatient?.dob === '1900-01-01') && (

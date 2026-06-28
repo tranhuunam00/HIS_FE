@@ -117,30 +117,41 @@ function AdminLayout() {
     return currentUser && roles.includes(currentUser.roleName);
   };
 
+  const hasBranchPermission = (permissionField) => {
+    if (!currentUser) return false;
+    if (currentUser.roleName === 'SUPER_ADMIN' || currentUser.username === 'admin' || currentUser.email === 'admin@hisdaocare.com') return true;
+    
+    const activeBranchId = localStorage.getItem('activeBranchId');
+    if (!activeBranchId) return false;
+    
+    const branchPerm = currentUser.scopedPermissions?.find(p => p.branchId === activeBranchId);
+    return branchPerm ? !!branchPerm[permissionField] : false;
+  };
+
   const menuItems = [
     {
       key: '/admin/org',
       icon: <SettingOutlined />,
       label: <Link to="/admin/org">Cấu hình Tổ chức</Link>,
-      roles: ['ADMIN'],
+      permissionField: 'canConfigureSystem',
     },
     {
       key: '/admin/users',
       icon: <UserOutlined />,
       label: <Link to="/admin/users">Tài khoản & Quyền</Link>,
-      roles: ['ADMIN'],
+      permissionField: 'canConfigureSystem',
     },
     {
       key: '/admin/medical',
       icon: <MedicineBoxOutlined />,
       label: <Link to="/admin/medical">Danh mục Y tế</Link>,
-      roles: ['ADMIN'],
+      permissionField: 'canConfigureCatalog',
     },
     {
       key: '/admin/schedules',
       icon: <CalendarOutlined />,
       label: <Link to="/admin/schedules">Lịch làm việc & Ca trực</Link>,
-      roles: ['ADMIN'],
+      permissionField: 'canManageSchedules',
     },
     {
       key: '/admin/schedules/attendance',
@@ -152,43 +163,47 @@ function AdminLayout() {
       key: '/admin/forms',
       icon: <FileTextOutlined />,
       label: <Link to="/admin/forms">Tùy biến biểu mẫu</Link>,
-      roles: ['ADMIN'],
+      permissionField: 'canConfigureSystem',
     },
     {
       key: '/admin/patients',
       icon: <UserOutlined />,
       label: <Link to="/admin/patients">Hồ sơ Bệnh nhân</Link>,
-      roles: ['RECEPTION', 'ADMIN'],
+      permissionField: 'canRegisterPatient',
     },
     {
       key: '/admin/appointments',
       icon: <CalendarOutlined />,
       label: <Link to="/admin/appointments">Quản lý Lịch hẹn</Link>,
-      roles: ['RECEPTION', 'ADMIN'],
+      permissionField: 'canManageAppointment',
     },
     {
       key: '/admin/queue',
       icon: <BuildOutlined />,
       label: <Link to="/admin/queue">Điều phối & Hàng đợi</Link>,
-      roles: ['RECEPTION', 'ADMIN'],
+      permissionField: 'canCheckIn',
     },
     {
       key: '/admin/billing/orders',
       icon: <ShoppingCartOutlined />,
       label: <Link to="/admin/billing/orders">Worklist & Chỉ định</Link>,
-      roles: ['DOCTOR', 'NURSE', 'ADMIN'],
+      permissionField: 'canPerformExam',
     },
     {
       key: '/admin/billing/cashier',
       icon: <DollarOutlined />,
       label: <Link to="/admin/billing/cashier">Thu ngân & Thanh toán</Link>,
-      roles: ['RECEPTION', 'ADMIN'],
+      permissionField: 'canCollectPayment',
     },
   ];
 
-  const filteredMenuItems = menuItems.filter(item =>
-    !item.roles || (currentUser && item.roles.includes(currentUser.roleName))
-  );
+  const filteredMenuItems = menuItems.filter(item => {
+    if (currentUser?.roleName === 'ADMIN') return true;
+    if (item.permissionField) {
+      return hasBranchPermission(item.permissionField);
+    }
+    return !item.roles || (currentUser && item.roles.includes(currentUser.roleName));
+  });
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -241,17 +256,17 @@ function AdminLayout() {
         <Content style={{ margin: 0, minHeight: 280, display: 'flex', flexDirection: 'column' }}>
           {currentUser && (
             <Routes>
-              <Route path="org" element={hasRole(['ADMIN']) ? <OrgManagementPage /> : <Navigate to={currentUser?.roleName === 'RECEPTION' ? '/admin/queue' : '/admin/schedules/attendance'} replace />} />
-              <Route path="users" element={hasRole(['ADMIN']) ? <UserManagementPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="medical" element={hasRole(['ADMIN']) ? <MedicalCatalogPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="schedules" element={hasRole(['ADMIN']) ? <ScheduleManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="org" element={hasBranchPermission('canConfigureSystem') ? <OrgManagementPage /> : <Navigate to={hasBranchPermission('canCheckIn') ? '/admin/queue' : '/admin/schedules/attendance'} replace />} />
+              <Route path="users" element={hasBranchPermission('canConfigureSystem') ? <UserManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="medical" element={hasBranchPermission('canConfigureCatalog') ? <MedicalCatalogPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="schedules" element={hasBranchPermission('canManageSchedules') ? <ScheduleManagementPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="schedules/attendance" element={hasRole(['DOCTOR', 'NURSE', 'TECHNICIAN', 'ADMIN']) ? <DoctorAttendancePage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="forms" element={hasRole(['ADMIN']) ? <FormManagementPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="patients" element={hasRole(['RECEPTION', 'ADMIN']) ? <PatientManagementPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="appointments" element={hasRole(['RECEPTION', 'ADMIN']) ? <AppointmentManagementPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="queue" element={hasRole(['RECEPTION', 'ADMIN']) ? <QueueDashboardPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="billing/orders" element={hasRole(['DOCTOR', 'NURSE', 'ADMIN']) ? <OrderManagementPage /> : <Navigate to="/admin/org" replace />} />
-              <Route path="billing/cashier" element={hasRole(['RECEPTION', 'ADMIN']) ? <CashierPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="forms" element={hasBranchPermission('canConfigureSystem') ? <FormManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="patients" element={hasBranchPermission('canRegisterPatient') ? <PatientManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="appointments" element={hasBranchPermission('canManageAppointment') ? <AppointmentManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="queue" element={hasBranchPermission('canCheckIn') ? <QueueDashboardPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="billing/orders" element={hasBranchPermission('canPerformExam') ? <OrderManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="billing/cashier" element={hasBranchPermission('canCollectPayment') ? <CashierPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="*" element={<Navigate to="org" replace />} />
             </Routes>
           )}

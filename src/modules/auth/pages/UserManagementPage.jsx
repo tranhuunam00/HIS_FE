@@ -168,31 +168,42 @@ export default function UserManagementPage() {
         title: 'Cơ sở',
         dataIndex: 'branchName',
         key: 'branchName',
-        width: '38%',
+        width: 150,
+        fixed: 'left',
         render: (text) => <span style={{ fontWeight: 500, color: '#434343' }}>{text}</span>,
       },
-      { title: 'Xem', dataIndex: 'canView', key: 'canView', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canView', userRecord.userId) },
-      { title: 'Đọc', dataIndex: 'canRead', key: 'canRead', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canRead', userRecord.userId) },
-      { title: 'Duyệt', dataIndex: 'canApprove', key: 'canApprove', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canApprove', userRecord.userId) },
-      { title: 'H.Chẩn', dataIndex: 'canConsult', key: 'canConsult', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canConsult', userRecord.userId) },
-      { title: 'Hủy HC', dataIndex: 'canCancelConsult', key: 'canCancelConsult', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canCancelConsult', userRecord.userId) },
-      { title: 'Sửa', dataIndex: 'canEdit', key: 'canEdit', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canEdit', userRecord.userId) },
-      { title: 'Xóa', dataIndex: 'canDelete', key: 'canDelete', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canDelete', userRecord.userId) },
-      { title: 'HIS', dataIndex: 'canUpdateHis', key: 'canUpdateHis', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canUpdateHis', userRecord.userId) },
-      { title: 'C.Sẻ', dataIndex: 'canShare', key: 'canShare', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canShare', userRecord.userId) },
-      { title: 'T.Kê', dataIndex: 'canStats', key: 'canStats', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canStats', userRecord.userId) },
-      { title: 'Hủy D.', dataIndex: 'canCancelApprove', key: 'canCancelApprove', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canCancelApprove', userRecord.userId) },
-      { title: 'Xóa S.', dataIndex: 'canDeleteSeries', key: 'canDeleteSeries', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canDeleteSeries', userRecord.userId) },
-      { title: 'L.Sử', dataIndex: 'canViewHistory', key: 'canViewHistory', width: '5%', align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canViewHistory', userRecord.userId) },
+      { title: 'Đăng ký BN', dataIndex: 'canRegisterPatient', key: 'canRegisterPatient', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canRegisterPatient', userRecord.userId) },
+      { title: 'Sửa BN', dataIndex: 'canUpdatePatient', key: 'canUpdatePatient', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canUpdatePatient', userRecord.userId) },
+      { title: 'Xóa BN', dataIndex: 'canDeletePatient', key: 'canDeletePatient', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canDeletePatient', userRecord.userId) },
+      { title: 'Đặt lịch hẹn', dataIndex: 'canManageAppointment', key: 'canManageAppointment', width: 110, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canManageAppointment', userRecord.userId) },
+      { title: 'Tiếp nhận', dataIndex: 'canCheckIn', key: 'canCheckIn', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canCheckIn', userRecord.userId) },
+      { title: 'Khám bệnh', dataIndex: 'canPerformExam', key: 'canPerformExam', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canPerformExam', userRecord.userId) },
+      { title: 'Chỉ định CLS', dataIndex: 'canOrderServices', key: 'canOrderServices', width: 110, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canOrderServices', userRecord.userId) },
+      { title: 'Kê đơn thuốc', dataIndex: 'canPrescribeMedicine', key: 'canPrescribeMedicine', width: 110, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canPrescribeMedicine', userRecord.userId) },
+      { title: 'Kết luận khám', dataIndex: 'canConcludeExam', key: 'canConcludeExam', width: 110, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canConcludeExam', userRecord.userId) },
+      { title: 'Thực hiện CLS', dataIndex: 'canExecuteLaboratory', key: 'canExecuteLaboratory', width: 110, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canExecuteLaboratory', userRecord.userId) },
+      { title: 'Duyệt kết quả', dataIndex: 'canApproveResult', key: 'canApproveResult', width: 110, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canApproveResult', userRecord.userId) },
+      { title: 'Thu tiền', dataIndex: 'canCollectPayment', key: 'canCollectPayment', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canCollectPayment', userRecord.userId) },
+      { title: 'Hoàn tiền', dataIndex: 'canRefundPayment', key: 'canRefundPayment', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canRefundPayment', userRecord.userId) },
+      { title: 'BC Doanh thu', dataIndex: 'canViewFinancialReports', key: 'canViewFinancialReports', width: 120, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canViewFinancialReports', userRecord.userId) },
+      { title: 'BC Chuyên môn', dataIndex: 'canViewClinicalReports', key: 'canViewClinicalReports', width: 120, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canViewClinicalReports', userRecord.userId) },
+      { title: 'Tồn kho', dataIndex: 'canManagePharmacyStock', key: 'canManagePharmacyStock', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canManagePharmacyStock', userRecord.userId) },
+      { title: 'Cấp phát thuốc', dataIndex: 'canDispenseMedicine', key: 'canDispenseMedicine', width: 120, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canDispenseMedicine', userRecord.userId) },
+      { title: 'Lịch trực', dataIndex: 'canManageSchedules', key: 'canManageSchedules', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canManageSchedules', userRecord.userId) },
+      { title: 'Nhân sự', dataIndex: 'canManageHR', key: 'canManageHR', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canManageHR', userRecord.userId) },
+      { title: 'Danh mục', dataIndex: 'canConfigureCatalog', key: 'canConfigureCatalog', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canConfigureCatalog', userRecord.userId) },
+      { title: 'Hệ thống', dataIndex: 'canConfigureSystem', key: 'canConfigureSystem', width: 100, align: 'center', render: (val, record) => renderPermissionCheckbox(val, record, 'canConfigureSystem', userRecord.userId) },
       {
         title: '',
         key: 'action',
-        width: '5%',
+        width: 60,
+        fixed: 'right',
         align: 'center',
         render: (_, record) => {
-          if (!record.isCustomOnly) {
+          const isRoleInherited = !record.isCustomOnly;
+          if (isRoleInherited) {
             return (
-              <Tooltip title="Dòng quyền này kế thừa từ Nhóm, chỉ có thể xóa trong cấu hình nhóm">
+              <Tooltip title="Dòng quyền kế thừa từ Nhóm quyền. Không thể xóa ở đây.">
                 <Button type="text" disabled icon={<DeleteOutlined />} size="small" />
               </Tooltip>
             );
@@ -218,6 +229,7 @@ export default function UserManagementPage() {
         rowKey="id"
         pagination={false}
         size="small"
+        scroll={{ x: 2300 }}
         style={{ margin: '8px 0', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}
       />
     );

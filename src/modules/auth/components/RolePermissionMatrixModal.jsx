@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Select, Table, Checkbox, Button, Space, Popconfirm, message } from 'antd';
-import { PlusOutlined, DeleteOutlined, GroupOutlined } from '@ant-design/icons';
+import { Modal, Select, Table, Checkbox, Button, Space, Popconfirm, message, Tooltip } from 'antd';
+import { PlusOutlined, DeleteOutlined, GroupOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { authAdminService } from '../../../services/authAdminService';
 import ScopedPermissionFormModal from './ScopedPermissionFormModal';
 
@@ -80,118 +80,226 @@ export default function RolePermissionMatrixModal({
     }
   };
 
+  const handleSelectAllForRow = async (record) => {
+    try {
+      const checkboxFields = [
+        'canRegisterPatient', 'canUpdatePatient', 'canDeletePatient', 'canManageAppointment',
+        'canCheckIn', 'canPerformExam', 'canOrderServices', 'canPrescribeMedicine',
+        'canConcludeExam', 'canExecuteLaboratory', 'canApproveResult', 'canCollectPayment',
+        'canRefundPayment', 'canViewFinancialReports', 'canViewClinicalReports', 'canManagePharmacyStock',
+        'canDispenseMedicine', 'canManageSchedules', 'canManageHR', 'canConfigureCatalog',
+        'canConfigureSystem'
+      ];
+      
+      const payload = {
+        branchId: record.branchId,
+      };
+      checkboxFields.forEach(f => {
+        payload[f] = true;
+      });
+
+      // Update locally immediately for responsiveness
+      setPermissions(prev => prev.map(item => {
+        if (item.id === record.id) {
+          const newItem = { ...item };
+          checkboxFields.forEach(f => {
+            newItem[f] = true;
+          });
+          return newItem;
+        }
+        return item;
+      }));
+
+      await authAdminService.saveRoleScopedPermission(selectedRoleId, payload);
+      message.success('Đã cập nhật toàn bộ quyền cho nhóm tại chi nhánh này!');
+      fetchRolePermissions(selectedRoleId);
+      if (onRefreshParent) onRefreshParent();
+    } catch (err) {
+      console.error(err);
+      message.error('Lỗi khi cập nhật quyền');
+      fetchRolePermissions(selectedRoleId);
+    }
+  };
+
   const permissionColumns = [
     {
       title: 'Cơ sở',
       dataIndex: 'branchName',
       key: 'branchName',
-      width: '30%',
+      width: 150,
+      fixed: 'left',
       render: (text) => <span style={{ fontWeight: 500, color: '#434343' }}>{text}</span>,
     },
     {
-      title: 'Xem',
-      dataIndex: 'canView',
-      key: 'canView',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canView', e.target.checked)} />,
+      title: 'Đăng ký BN',
+      dataIndex: 'canRegisterPatient',
+      key: 'canRegisterPatient',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canRegisterPatient', e.target.checked)} />,
     },
     {
-      title: 'Đọc',
-      dataIndex: 'canRead',
-      key: 'canRead',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canRead', e.target.checked)} />,
+      title: 'Sửa BN',
+      dataIndex: 'canUpdatePatient',
+      key: 'canUpdatePatient',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canUpdatePatient', e.target.checked)} />,
     },
     {
-      title: 'Duyệt',
-      dataIndex: 'canApprove',
-      key: 'canApprove',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canApprove', e.target.checked)} />,
+      title: 'Xóa BN',
+      dataIndex: 'canDeletePatient',
+      key: 'canDeletePatient',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canDeletePatient', e.target.checked)} />,
     },
     {
-      title: 'H.Chẩn',
-      dataIndex: 'canConsult',
-      key: 'canConsult',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canConsult', e.target.checked)} />,
+      title: 'Đặt lịch hẹn',
+      dataIndex: 'canManageAppointment',
+      key: 'canManageAppointment',
+      width: 110,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canManageAppointment', e.target.checked)} />,
     },
     {
-      title: 'Hủy HC',
-      dataIndex: 'canCancelConsult',
-      key: 'canCancelConsult',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canCancelConsult', e.target.checked)} />,
+      title: 'Tiếp nhận',
+      dataIndex: 'canCheckIn',
+      key: 'canCheckIn',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canCheckIn', e.target.checked)} />,
     },
     {
-      title: 'Sửa',
-      dataIndex: 'canEdit',
-      key: 'canEdit',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canEdit', e.target.checked)} />,
+      title: 'Khám bệnh',
+      dataIndex: 'canPerformExam',
+      key: 'canPerformExam',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canPerformExam', e.target.checked)} />,
     },
     {
-      title: 'Xóa',
-      dataIndex: 'canDelete',
-      key: 'canDelete',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canDelete', e.target.checked)} />,
+      title: 'Chỉ định CLS',
+      dataIndex: 'canOrderServices',
+      key: 'canOrderServices',
+      width: 110,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canOrderServices', e.target.checked)} />,
     },
     {
-      title: 'HIS',
-      dataIndex: 'canUpdateHis',
-      key: 'canUpdateHis',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canUpdateHis', e.target.checked)} />,
+      title: 'Kê đơn thuốc',
+      dataIndex: 'canPrescribeMedicine',
+      key: 'canPrescribeMedicine',
+      width: 110,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canPrescribeMedicine', e.target.checked)} />,
     },
     {
-      title: 'C.Sẻ',
-      dataIndex: 'canShare',
-      key: 'canShare',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canShare', e.target.checked)} />,
+      title: 'Kết luận khám',
+      dataIndex: 'canConcludeExam',
+      key: 'canConcludeExam',
+      width: 110,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canConcludeExam', e.target.checked)} />,
     },
     {
-      title: 'T.Kê',
-      dataIndex: 'canStats',
-      key: 'canStats',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canStats', e.target.checked)} />,
+      title: 'Thực hiện CLS',
+      dataIndex: 'canExecuteLaboratory',
+      key: 'canExecuteLaboratory',
+      width: 110,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canExecuteLaboratory', e.target.checked)} />,
     },
     {
-      title: 'Hủy D.',
-      dataIndex: 'canCancelApprove',
-      key: 'canCancelApprove',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canCancelApprove', e.target.checked)} />,
+      title: 'Duyệt kết quả',
+      dataIndex: 'canApproveResult',
+      key: 'canApproveResult',
+      width: 110,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canApproveResult', e.target.checked)} />,
     },
     {
-      title: 'Xóa S.',
-      dataIndex: 'canDeleteSeries',
-      key: 'canDeleteSeries',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canDeleteSeries', e.target.checked)} />,
+      title: 'Thu tiền',
+      dataIndex: 'canCollectPayment',
+      key: 'canCollectPayment',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canCollectPayment', e.target.checked)} />,
     },
     {
-      title: 'L.Sử',
-      dataIndex: 'canViewHistory',
-      key: 'canViewHistory',
-      width: '5%',
-      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canViewHistory', e.target.checked)} />,
+      title: 'Hoàn tiền',
+      dataIndex: 'canRefundPayment',
+      key: 'canRefundPayment',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canRefundPayment', e.target.checked)} />,
+    },
+    {
+      title: 'BC Doanh thu',
+      dataIndex: 'canViewFinancialReports',
+      key: 'canViewFinancialReports',
+      width: 120,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canViewFinancialReports', e.target.checked)} />,
+    },
+    {
+      title: 'BC Chuyên môn',
+      dataIndex: 'canViewClinicalReports',
+      key: 'canViewClinicalReports',
+      width: 120,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canViewClinicalReports', e.target.checked)} />,
+    },
+    {
+      title: 'Tồn kho',
+      dataIndex: 'canManagePharmacyStock',
+      key: 'canManagePharmacyStock',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canManagePharmacyStock', e.target.checked)} />,
+    },
+    {
+      title: 'Cấp phát thuốc',
+      dataIndex: 'canDispenseMedicine',
+      key: 'canDispenseMedicine',
+      width: 120,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canDispenseMedicine', e.target.checked)} />,
+    },
+    {
+      title: 'Lịch trực',
+      dataIndex: 'canManageSchedules',
+      key: 'canManageSchedules',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canManageSchedules', e.target.checked)} />,
+    },
+    {
+      title: 'Nhân sự',
+      dataIndex: 'canManageHR',
+      key: 'canManageHR',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canManageHR', e.target.checked)} />,
+    },
+    {
+      title: 'Danh mục',
+      dataIndex: 'canConfigureCatalog',
+      key: 'canConfigureCatalog',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canConfigureCatalog', e.target.checked)} />,
+    },
+    {
+      title: 'Hệ thống',
+      dataIndex: 'canConfigureSystem',
+      key: 'canConfigureSystem',
+      width: 100,
+      render: (val, record) => <Checkbox checked={val} onChange={(e) => handleCheckboxChange(record, 'canConfigureSystem', e.target.checked)} />,
     },
     {
       title: '',
       key: 'action',
-      width: '5%',
+      width: '10%',
       render: (_, record) => (
-        <Popconfirm
-          title="Xác nhận xóa dòng quyền này của nhóm?"
-          onConfirm={() => handleDelete(record.id)}
-          okText="Xóa"
-          cancelText="Hủy"
-        >
-          <Button type="text" danger icon={<DeleteOutlined />} size="small" />
-        </Popconfirm>
+        <Space size="small">
+          <Tooltip title="Tích chọn tất cả các quyền">
+            <Button
+              type="text"
+              icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+              onClick={() => handleSelectAllForRow(record)}
+              size="small"
+            />
+          </Tooltip>
+          <Popconfirm
+            title="Xác nhận xóa dòng quyền này của nhóm?"
+            onConfirm={() => handleDelete(record.id)}
+            okText="Xóa"
+            cancelText="Hủy"
+          >
+            <Button type="text" danger icon={<DeleteOutlined />} size="small" />
+          </Popconfirm>
+        </Space>
       ),
     },
   ];
@@ -248,7 +356,7 @@ export default function RolePermissionMatrixModal({
         size="small"
         loading={loading}
         pagination={false}
-        scroll={{ y: 350 }}
+        scroll={{ x: 2300, y: 350 }}
         style={{ border: '1px solid #f0f0f0', borderRadius: 8, overflow: 'hidden' }}
       />
 
