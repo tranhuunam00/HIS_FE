@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Button, Tag, Space, Modal, Form, Select, Input, InputNumber, Typography, message, Tooltip, Progress, Badge, Divider } from 'antd';
-import { SyncOutlined, ArrowRightOutlined, HeartOutlined, HomeOutlined, CheckCircleOutlined, DollarOutlined, ExperimentOutlined, FileTextOutlined, WarningOutlined, CompassOutlined, ClockCircleOutlined, UserOutlined } from '@ant-design/icons';
+import { SyncOutlined, ArrowRightOutlined, HeartOutlined, HomeOutlined, CheckCircleOutlined, DollarOutlined, ExperimentOutlined, FileTextOutlined, WarningOutlined, CompassOutlined, ClockCircleOutlined, UserOutlined, PlusOutlined } from '@ant-design/icons';
 import { visitService } from '../../../services/visitService';
 import { roomService } from '../../../services/roomService';
 import { staffService } from '../../../services/staffService';
 import { billingService } from '../../../services/billingService';
 import { attendanceService } from '../../../services/attendanceService';
 import { authAdminService } from '../../../services/authAdminService';
+import { medicalService } from '../../../services/medicalService';
+import dayjs from 'dayjs';
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -30,6 +32,14 @@ export default function QueueDashboardPage() {
   const [formTransfer] = Form.useForm();
   const [formVitals] = Form.useForm();
   const [saving, setSaving] = useState(false);
+
+  const [specialties, setSpecialties] = useState([]);
+  const [allServices, setAllServices] = useState([]);
+  const [filteredServices, setFilteredServices] = useState([]);
+  const [quickSpecialtyId, setQuickSpecialtyId] = useState(undefined);
+  const [quickServiceId, setQuickServiceId] = useState(undefined);
+  const [showAddServiceForm, setShowAddServiceForm] = useState(false);
+  const [addingService, setAddingService] = useState(false);
 
   const [currentUser, setCurrentUser] = useState(null);
   const activeBranchId = localStorage.getItem('activeBranchId');
@@ -96,14 +106,77 @@ export default function QueueDashboardPage() {
   const loadMetadata = async () => {
     if (!activeBranchId) return;
     try {
-      const [roomList, staffList] = await Promise.all([
+      const [roomList, staffList, specialtyList, serviceList] = await Promise.all([
         roomService.getRooms(activeBranchId),
         staffService.getStaffList({ branchId: activeBranchId, title: 'DOCTOR' }),
+        medicalService.getSpecialties(),
+        medicalService.getServices({ isActive: true }),
       ]);
       setRooms(roomList.filter((r) => r.isActive));
       setDoctors(staffList.filter((s) => s.isActive));
+      setSpecialties(specialtyList);
+      setAllServices(serviceList);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const getActivePriceObjectAtDate = (prices = [], date = new Date()) => {
+    if (!prices || prices.length === 0) return null;
+    const target = dayjs(date);
+    const sorted = [...prices]
+      .filter((p) => dayjs(p.effectiveDate).isBefore(target) || dayjs(p.effectiveDate).isSame(target, 'day'))
+      .sort((a, b) => dayjs(b.effectiveDate).diff(dayjs(a.effectiveDate)));
+    return sorted[0] || null;
+  };
+
+  const handleQuickSpecialtyChange = (val) => {
+    setQuickSpecialtyId(val);
+    setQuickServiceId(undefined);
+    setFilteredServices(allServices.filter(s => s.specialtyId === val && s.isActive));
+  };
+
+  const handleQuickAddService = async () => {
+    if (!selectedVisit?.order) {
+      message.error("Lượt khám chưa có thông tin hóa đơn khởi tạo!");
+      return;
+    }
+    if (!quickServiceId) {
+      message.error("Vui lòng chọn dịch vụ!");
+      return;
+    }
+    
+    try {
+      setAddingService(true);
+      const svc = allServices.find(s => s.id === quickServiceId);
+      const activePriceObj = getActivePriceObjectAtDate(svc?.prices, new Date());
+      const amount = activePriceObj ? Number(activePriceObj.amount) : 0;
+      
+      const updatedOrder = await billingService.addOrderItem(selectedVisit.order.id, {
+        serviceId: quickServiceId,
+        quantity: 1,
+        price: amount,
+      });
+      
+      // Update selectedVisit order items locally
+      const updatedVisit = {
+        ...selectedVisit,
+        order: updatedOrder
+      };
+      setSelectedVisit(updatedVisit);
+      
+      // Update visits list state so it stays updated
+      setVisits(prev => prev.map(v => v.id === selectedVisit.id ? updatedVisit : v));
+      
+      message.success("Thêm chỉ định dịch vụ thành công!");
+      setShowAddServiceForm(false);
+      setQuickServiceId(undefined);
+      setQuickSpecialtyId(undefined);
+    } catch (err) {
+      console.error(err);
+      message.error("Không thể thêm chỉ định dịch vụ");
+    } finally {
+      setAddingService(false);
     }
   };
 
@@ -731,6 +804,74 @@ export default function QueueDashboardPage() {
               {selectedVisit.order && selectedVisit.order.status === 'PENDING' && (
                 <div style={{ marginTop: 10, padding: '8px 10px', background: '#fff2e6', border: '1px solid #ffd8bf', borderRadius: 4, color: '#d46b08', fontSize: '11px', lineHeight: '1.4' }}>
                   ⚠️ <strong>Cảnh báo:</strong> Bệnh nhân chưa thanh toán. Vui lòng hướng dẫn bệnh nhân qua quầy thu ngân thanh toán trước khi điều phối vào phòng thực hiện CLS!
+                </div>
+              )}
+
+              {/* Quick Add Service Form */}
+              {selectedVisit.order && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px dashed #e2e8f0' }}>
+                  {!showAddServiceForm ? (
+                    <Button
+                      type="dashed"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      onClick={() => setShowAddServiceForm(true)}
+                      style={{ width: '100%', fontSize: '11px' }}
+                    >
+                      Thêm chỉ định dịch vụ khám/CLS nhanh
+                    </Button>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#4a5568' }}>Thêm dịch vụ chỉ định nhanh:</div>
+                      <Row gutter={8}>
+                        <Col span={12}>
+                          <Select
+                            placeholder="Chọn chuyên khoa"
+                            size="small"
+                            value={quickSpecialtyId}
+                            onChange={handleQuickSpecialtyChange}
+                            style={{ width: '100%', fontSize: '11px' }}
+                          >
+                            {specialties.map(spec => (
+                              <Option key={spec.id} value={spec.id}>{spec.name}</Option>
+                            ))}
+                          </Select>
+                        </Col>
+                        <Col span={12}>
+                          <Select
+                            placeholder="Chọn dịch vụ"
+                            size="small"
+                            value={quickServiceId}
+                            onChange={setQuickServiceId}
+                            disabled={!quickSpecialtyId}
+                            style={{ width: '100%', fontSize: '11px' }}
+                          >
+                            {filteredServices.map(svc => (
+                              <Option key={svc.id} value={svc.id}>{svc.name}</Option>
+                            ))}
+                          </Select>
+                        </Col>
+                      </Row>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                        <Button size="small" style={{ fontSize: '11px' }} onClick={() => {
+                          setShowAddServiceForm(false);
+                          setQuickServiceId(undefined);
+                          setQuickSpecialtyId(undefined);
+                        }}>
+                          Hủy
+                        </Button>
+                        <Button
+                          type="primary"
+                          size="small"
+                          loading={addingService}
+                          onClick={handleQuickAddService}
+                          style={{ backgroundColor: '#059669', borderColor: '#059669', fontSize: '11px' }}
+                        >
+                          Thêm chỉ định
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
