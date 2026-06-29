@@ -14,6 +14,7 @@ import {
   DollarOutlined,
   ShoppingCartOutlined,
   ClockCircleOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 import LoginPage from './modules/auth/pages/LoginPage';
 import OrgManagementPage from './modules/org/pages/OrgManagementPage';
@@ -27,6 +28,7 @@ import AppointmentManagementPage from './modules/reception/pages/AppointmentMana
 import QueueDashboardPage from './modules/reception/pages/QueueDashboardPage';
 import OrderManagementPage from './modules/billing/pages/OrderManagementPage';
 import CashierPage from './modules/billing/pages/CashierPage';
+import AuditLogsPage from './modules/auth/pages/AuditLogsPage';
 import { orgService } from './services/orgService';
 import { authAdminService } from './services/authAdminService';
 import './App.css';
@@ -195,6 +197,12 @@ function AdminLayout() {
       label: <Link to="/admin/billing/cashier">Thu ngân & Thanh toán</Link>,
       permissionField: 'canCollectPayment',
     },
+    {
+      key: '/admin/audit-logs',
+      icon: <HistoryOutlined />,
+      label: <Link to="/admin/audit-logs">Nhật ký hệ thống</Link>,
+      permissionField: 'canConfigureSystem',
+    },
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
@@ -267,6 +275,7 @@ function AdminLayout() {
               <Route path="queue" element={hasBranchPermission('canCheckIn') ? <QueueDashboardPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="billing/orders" element={hasBranchPermission('canPerformExam') ? <OrderManagementPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="billing/cashier" element={hasBranchPermission('canCollectPayment') ? <CashierPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="audit-logs" element={hasBranchPermission('canConfigureSystem') ? <AuditLogsPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="*" element={<Navigate to="org" replace />} />
             </Routes>
           )}

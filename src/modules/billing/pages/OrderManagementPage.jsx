@@ -648,7 +648,7 @@ export default function OrderManagementPage() {
               {!record.isPaid && (
                 <Text type="secondary" style={{ fontSize: 12 }}>Chưa thu</Text>
               )}
-              {order?.status !== 'PAID' && (
+              {!record.isPaid && (
                 <Tooltip title="Xóa dịch vụ chưa thực hiện">
                   <Button
                     type="text"

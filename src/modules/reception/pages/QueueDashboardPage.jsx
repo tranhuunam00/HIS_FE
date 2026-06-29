@@ -217,7 +217,7 @@ export default function QueueDashboardPage() {
     }
   };
 
-  const handleOpenTransfer = (visit) => {
+  const handleOpenTransfer = async (visit) => {
     setSelectedVisit(visit);
     formTransfer.resetFields();
     
@@ -237,6 +237,19 @@ export default function QueueDashboardPage() {
     }
     
     setTransferVisible(true);
+
+    // Fetch or create order if missing
+    if (!visit.order) {
+      try {
+        const order = await billingService.getOrderByVisit(visit.id);
+        const updatedVisit = { ...visit, order };
+        setSelectedVisit(updatedVisit);
+        // Sync with the visits list state
+        setVisits(prev => prev.map(v => v.id === visit.id ? updatedVisit : v));
+      } catch (err) {
+        console.error("Error loading or creating order for transfer modal:", err);
+      }
+    }
   };
 
   const handleOpenVitals = (visit) => {
