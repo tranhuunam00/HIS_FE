@@ -6,7 +6,8 @@ import {
 import {
   MedicineBoxOutlined, SearchOutlined, CheckCircleOutlined,
   DeleteOutlined, PlusOutlined, UserOutlined, PlayCircleOutlined,
-  ArrowRightOutlined, CompassOutlined, FileTextOutlined, EditOutlined
+  ArrowRightOutlined, CompassOutlined, FileTextOutlined, EditOutlined,
+  CloseCircleOutlined, UndoOutlined
 } from '@ant-design/icons';
 import { visitService } from '../../../services/visitService';
 import { medicalService } from '../../../services/medicalService';
@@ -486,10 +487,10 @@ export default function OrderManagementPage() {
     }
   };
 
-  const handleSaveResult = async (itemId, newStatus, newResultStatus, newResultNotes) => {
+  const handleSaveResult = async (itemId, newStatus, newResultStatus, newResultNotes, customPerformedById = undefined) => {
     if (!order) return;
     try {
-      const performedById = currentUser?.staff?.id;
+      const performedById = customPerformedById !== undefined ? customPerformedById : currentUser?.staff?.id;
       const updatedOrder = await billingService.updateOrderItem(order.id, itemId, {
         status: newStatus,
         resultStatus: newResultStatus,
@@ -549,6 +550,33 @@ export default function OrderManagementPage() {
 
       if (!activeStatuses.includes(v.status)) {
         return false;
+      }
+
+      // If it is a non-CLINIC / CLS room, apply the doctor assignment & room pending logic:
+      if (!isClinic) {
+        const orderItems = v.order?.items || [];
+        const docCapableServiceIds = rooms
+          .filter(r => checkedInRoomIds.includes(r.id))
+          .flatMap(r => r.serviceIds || []);
+
+        // 1. Check if there are any services in this room that are still PENDING (not yet started by any doctor)
+        const hasPendingServicesInRoom = orderItems.some(item => 
+          docCapableServiceIds.includes(item.serviceId) && 
+          item.status === 'PENDING' && 
+          !item.performedById
+        );
+
+        // 2. Check if this specific doctor has any active services they accepted (IN_PROGRESS, or completed but with PENDING results)
+        const hasMyActiveServices = orderItems.some(item => 
+          item.performedById === doctorId && 
+          (item.status !== 'COMPLETED' || item.resultStatus === 'PENDING') &&
+          item.status !== 'CANCELLED'
+        );
+
+        // Hide patient only when there are no more pending services for this room AND this doctor has finished all their accepted tasks
+        if (!hasPendingServicesInRoom && !hasMyActiveServices) {
+          return false;
+        }
       }
     }
 
@@ -662,17 +690,55 @@ export default function OrderManagementPage() {
           return (
             <Space>
               {record.isPaid && (
-                <Tooltip title="Bắt đầu thực hiện chỉ định này">
-                  <Button
-                    type="primary"
-                    size="small"
-                    ghost
-                    icon={<PlayCircleOutlined />}
-                    onClick={() => handleUpdateItemStatus(record.id, 'IN_PROGRESS')}
-                  >
-                    Đang làm
-                  </Button>
-                </Tooltip>
+                <>
+                  {!record.performedById ? (
+                    <Tooltip title="Nhận thực hiện dịch vụ này">
+                      <Button
+                        type="primary"
+                        size="small"
+                        ghost
+                        icon={<PlayCircleOutlined />}
+                        onClick={() => handleSaveResult(record.id, 'PENDING', 'NONE', '')}
+                      >
+                        Nhận việc
+                      </Button>
+                    </Tooltip>
+                  ) : (
+                    <>
+                      {record.performedById === currentUser?.staff?.id ? (
+                        <Space>
+                          <Tooltip title="Bắt đầu thực hiện chỉ định này">
+                            <Button
+                              type="primary"
+                              size="small"
+                              icon={<PlayCircleOutlined />}
+                              onClick={() => handleSaveResult(record.id, 'IN_PROGRESS', 'NONE', '')}
+                            >
+                              Đang làm
+                            </Button>
+                          </Tooltip>
+                          <Tooltip title="Hủy nhận chỉ định này (trả về hàng đợi)">
+                            <Button
+                              type="text"
+                              danger
+                              size="small"
+                              icon={<CloseCircleOutlined />}
+                              onClick={() => handleSaveResult(record.id, 'PENDING', 'NONE', '', null)}
+                            >
+                              Hủy nhận
+                            </Button>
+                          </Tooltip>
+                        </Space>
+                      ) : (
+                        <Tooltip title={`BS ${performerName} đã nhận chỉ định này`}>
+                          <Button size="small" disabled>
+                            Đã nhận
+                          </Button>
+                        </Tooltip>
+                      )}
+                    </>
+                  )}
+                </>
               )}
               {!record.isPaid && (
                 <Text type="secondary" style={{ fontSize: 12 }}>Chưa thu</Text>
@@ -712,6 +778,19 @@ export default function OrderManagementPage() {
                   Đã xong
                 </Button>
               </Tooltip>
+              {isAllowedToEdit && (
+                <Tooltip title="Hủy trạng thái Đang làm (Quay lại Chờ làm)">
+                  <Button
+                    type="text"
+                    danger
+                    size="small"
+                    icon={<UndoOutlined />}
+                    onClick={() => handleSaveResult(record.id, 'PENDING', 'NONE', '')}
+                  >
+                    Hủy làm
+                  </Button>
+                </Tooltip>
+              )}
             </Space>
           );
         }
