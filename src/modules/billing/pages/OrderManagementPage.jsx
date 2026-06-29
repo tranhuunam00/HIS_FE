@@ -383,6 +383,8 @@ export default function OrderManagementPage() {
       setSelectedVisit(updatedVisit);
       message.success('Hoàn thành lượt khám thành công!');
       fetchVisits();
+      // Automatically open the Transfer modal for the doctor to choose manually
+      handleOpenTransfer(updatedVisit);
     } catch (err) {
       console.error(err);
       message.error(err.response?.data?.message || 'Không thể hoàn thành lượt khám');
@@ -526,6 +528,30 @@ export default function OrderManagementPage() {
       const allowedStatuses = WORKLIST_SCOPES[worklistScope] || [];
       if (!allowedStatuses.includes(v.status)) return false;
     }
+
+    // Filter out patients from "Chờ + đang xử lý" if the logged-in doctor is completely done with their tasks
+    if (worklistScope === 'OPEN' && currentUser?.staff?.id) {
+      const doctorId = currentUser.staff.id;
+      const checkedInRoomIds = activeAttendances.map(a => a.roomId);
+      
+      const isAssignedToMe = v.currentDoctorId === doctorId || (v.currentRoomId && checkedInRoomIds.includes(v.currentRoomId));
+      
+      if (!isAssignedToMe) {
+        return false;
+      }
+
+      // Check if the visit status is active for the current room type
+      const currentRoom = rooms.find(r => r.id === v.currentRoomId);
+      const isClinic = currentRoom?.type === 'CLINIC';
+      const activeStatuses = isClinic 
+        ? ['WAITING_CLINICAL_EXAM', 'IN_CLINICAL_EXAM', 'WAITING_CONCLUSION', 'IN_CONCLUSION']
+        : ['WAITING_SERVICE', 'IN_SERVICE'];
+
+      if (!activeStatuses.includes(v.status)) {
+        return false;
+      }
+    }
+
     const term = searchVisitText.toLowerCase();
     const patientName = v.patient?.fullName?.toLowerCase() || '';
     const visitCode = v.visitCode?.toLowerCase() || '';
@@ -629,6 +655,9 @@ export default function OrderManagementPage() {
       align: 'center',
       width: 150,
       render: (_, record) => {
+        const isAllowedToEdit = !record.performedById || record.performedById === currentUser?.staff?.id;
+        const performerName = record.performedBy?.fullName || 'Bác sĩ khác';
+
         if (record.status === 'PENDING') {
           return (
             <Space>
@@ -664,18 +693,20 @@ export default function OrderManagementPage() {
         if (record.status === 'IN_PROGRESS') {
           return (
             <Space>
-              <Tooltip title="Trả sau (Kết quả bổ sung sau)">
+              <Tooltip title={isAllowedToEdit ? "Trả sau (Kết quả bổ sung sau)" : `Chỉ BS ${performerName} đã tiếp nhận mới được trả sau`}>
                 <Button
                   type="text"
-                  icon={<FileTextOutlined style={{ color: '#d4b106' }} />}
+                  disabled={!isAllowedToEdit}
+                  icon={<FileTextOutlined style={{ color: isAllowedToEdit ? '#d4b106' : '#bfbfbf' }} />}
                   onClick={() => handleSaveResult(record.id, 'COMPLETED', 'PENDING', '')}
                 />
               </Tooltip>
-              <Tooltip title="Đã xong / nhập kết quả">
+              <Tooltip title={isAllowedToEdit ? "Đã xong / nhập kết quả" : `Chỉ BS ${performerName} đã tiếp nhận mới được nhập kết quả`}>
                 <Button
                   type="primary"
                   size="small"
-                  icon={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
+                  disabled={!isAllowedToEdit}
+                  icon={<CheckCircleOutlined style={{ color: isAllowedToEdit ? '#52c41a' : '#ffffff' }} />}
                   onClick={() => handleOpenResultModal(record)}
                 >
                   Đã xong
@@ -687,11 +718,12 @@ export default function OrderManagementPage() {
         if (record.status === 'COMPLETED' && hasBranchPermission('canExecuteLaboratory')) {
           if (record.resultStatus === 'PENDING') {
             return (
-              <Tooltip title="Viết phiếu kết quả">
+              <Tooltip title={isAllowedToEdit ? "Viết phiếu kết quả" : `Chỉ BS ${performerName} đã tiếp nhận mới được viết kết quả`}>
                 <Button
                   type="primary"
                   size="small"
                   ghost
+                  disabled={!isAllowedToEdit}
                   icon={<EditOutlined />}
                   onClick={() => handleOpenResultModal(record)}
                 >
@@ -702,10 +734,11 @@ export default function OrderManagementPage() {
           }
           if (record.resultStatus === 'COMPLETED') {
             return (
-              <Tooltip title="Sửa kết quả">
+              <Tooltip title={isAllowedToEdit ? "Sửa kết quả" : `Chỉ BS ${performerName} đã tiếp nhận mới được sửa kết quả`}>
                 <Button
                   type="text"
-                  icon={<EditOutlined style={{ color: '#1890ff' }} />}
+                  disabled={!isAllowedToEdit}
+                  icon={<EditOutlined style={{ color: isAllowedToEdit ? '#1890ff' : '#bfbfbf' }} />}
                   onClick={() => handleOpenResultModal(record)}
                 />
               </Tooltip>
