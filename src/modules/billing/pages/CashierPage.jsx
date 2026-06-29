@@ -955,11 +955,33 @@ export default function CashierPage() {
                 <div style={{ background: '#fff', border: '1px solid #edf2f7', padding: '12px', borderRadius: '6px', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, color: '#30456c', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Dịch vụ chỉ định & Trạng thái</span>
-                    {selectedOrder ? (
-                      <Tag color={selectedOrder.status === 'PAID' ? 'green' : 'orange'} style={{ margin: 0, fontSize: '10px' }}>
-                        {selectedOrder.status === 'PAID' ? 'ĐÃ THANH TOÁN' : 'CHƯA THANH TOÁN'}
-                      </Tag>
-                    ) : (
+                    {selectedOrder ? (() => {
+                      const items = selectedOrder.items || [];
+                      const paidCount = items.filter(i => i.isPaid).length;
+                      const totalCount = items.length;
+                      const allPaid = totalCount > 0 && paidCount === totalCount;
+                      const partialPaid = paidCount > 0 && paidCount < totalCount;
+                      
+                      const completedCount = items.filter(i => i.status === 'COMPLETED').length;
+                      const allCompleted = totalCount > 0 && completedCount === totalCount;
+                      const partialCompleted = completedCount > 0 && completedCount < totalCount;
+                      return (
+                        <Space size={4}>
+                          <Tag
+                            color={allPaid ? 'green' : paidCount > 0 ? 'blue' : 'orange'}
+                            style={{ margin: 0, fontSize: '10px' }}
+                          >
+                            {allPaid ? 'ĐÃ THANH TOÁN' : `ĐÃ TT ${paidCount}/${totalCount}`}
+                          </Tag>
+                          <Tag
+                            color={allCompleted ? 'green' : partialCompleted ? 'blue' : 'orange'}
+                            style={{ margin: 0, fontSize: '10px' }}
+                          >
+                            {allCompleted ? 'ĐÃ XONG TOÀN BỘ' : `ĐÃ XONG ${completedCount}/${totalCount}`}
+                          </Tag>
+                        </Space>
+                      );
+                    })() : (
                       <Tag color="red" style={{ margin: 0, fontSize: '10px' }}>CHƯA CÓ HÓA ĐƠN</Tag>
                     )}
                   </div>
