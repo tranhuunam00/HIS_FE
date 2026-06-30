@@ -310,9 +310,9 @@ export default function ScheduleManagementPage() {
               else if (nameLower.includes('tối')) color = 'warning';
 
               return (
-                <Tooltip key={sIdx} title={`${s.shiftName}: ${s.startTime} - ${s.endTime} @ ${s.branchName}`}>
+                <Tooltip key={sIdx} title={`${s.shiftName}: ${s.startTime} - ${s.endTime} @ ${s.branchName}${s.roomName ? ` (${s.roomName})` : ''}`}>
                   <Tag color={color} style={{ margin: 0, fontSize: 10, width: '100%', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                    {s.shiftName} ({s.branchName.replace('Chi nhánh ', '')})
+                    {s.shiftName} ({s.branchName.replace('Chi nhánh ', '')}{s.roomName ? ` - ${s.roomName}` : ''})
                   </Tag>
                 </Tooltip>
               );
@@ -427,16 +427,6 @@ export default function ScheduleManagementPage() {
                 format="Tuần w, YYYY"
               />
             </div>
-          }
-          extra={
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenBulkUpdate}
-              size="small"
-            >
-              Cập nhật nhanh
-            </Button>
           }
           styles={{ body: { padding: '0px' } }}
         >

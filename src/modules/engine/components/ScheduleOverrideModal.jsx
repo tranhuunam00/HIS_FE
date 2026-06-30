@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Form, Radio, Select, Input, Button, Space, message } from 'antd';
 import { scheduleService } from '../../../services/scheduleService';
+import { roomService } from '../../../services/roomService';
 
 const { Option } = Select;
 
@@ -19,9 +20,25 @@ export default function ScheduleOverrideModal({
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [type, setType] = useState('LEAVE');
+  const [rooms, setRooms] = useState([]);
+  const selectedBranchId = Form.useWatch('branchId', form);
+
+  // Filter branches based on doctor assignments
+  const doctorBranches = branches.filter((b) =>
+    staff?.assignments?.some((a) => a.branchId === b.id)
+  );
+  const displayBranches = doctorBranches.length > 0 ? doctorBranches : branches;
+
+  // Filter rooms based on doctor assignments at selected branch
+  const displayRooms = rooms.filter((r) =>
+    r.branchId === selectedBranchId &&
+    staff?.assignments?.some((a) => a.branchId === selectedBranchId && (a.roomId === r.id || !a.roomId))
+  );
 
   useEffect(() => {
     if (visible) {
+      roomService.getRooms().then(setRooms).catch(console.error);
+
       if (currentOverride) {
         setType(currentOverride.isLeave ? 'LEAVE' : 'WORK');
         form.setFieldsValue({
@@ -29,6 +46,7 @@ export default function ScheduleOverrideModal({
           reason: currentOverride.leaveReason || '',
           shiftId: currentOverride.shifts?.[0]?.shiftId || undefined,
           branchId: currentOverride.shifts?.[0]?.branchId || undefined,
+          roomId: currentOverride.shifts?.[0]?.roomId || undefined,
         });
       } else {
         setType('LEAVE');
@@ -52,6 +70,7 @@ export default function ScheduleOverrideModal({
         reason: values.overrideType === 'LEAVE' ? values.reason : null,
         shiftId: values.overrideType === 'WORK' ? values.shiftId : null,
         branchId: values.overrideType === 'WORK' ? values.branchId : null,
+        roomId: values.overrideType === 'WORK' ? values.roomId : null,
       };
 
       await scheduleService.createScheduleOverride(payload);
@@ -141,15 +160,33 @@ export default function ScheduleOverrideModal({
               </Select>
             </Form.Item>
 
-            <Form.Item
+             <Form.Item
               label="Chọn chi nhánh làm việc mới"
               name="branchId"
               rules={[{ required: true, message: 'Vui lòng chọn chi nhánh' }]}
             >
-              <Select placeholder="Chọn chi nhánh">
-                {branches.map((b) => (
+              <Select
+                placeholder="Chọn chi nhánh"
+                onChange={() => {
+                  form.setFieldsValue({ roomId: undefined });
+                }}
+              >
+                {displayBranches.map((b) => (
                   <Option key={b.id} value={b.id}>
                     {b.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+             <Form.Item
+              label="Chọn phòng làm việc mới"
+              name="roomId"
+            >
+              <Select placeholder="Chọn phòng" allowClear disabled={!selectedBranchId}>
+                {displayRooms.map((r) => (
+                  <Option key={r.id} value={r.id}>
+                    {r.name}
                   </Option>
                 ))}
               </Select>

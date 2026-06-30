@@ -3,6 +3,7 @@ import { Modal, Form, DatePicker, Select, Button, Space, Divider, Row, Col, mess
 import { PlusOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { scheduleService } from '../../../services/scheduleService';
+import { roomService } from '../../../services/roomService';
 
 const { Option } = Select;
 
@@ -29,8 +30,32 @@ export default function ScheduleUpdateModal({
 }) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [quickRoom, setQuickRoom] = useState(undefined);
 
-  // Configuration for each day of the week: { Monday: [{ shiftId, branchId }], Tuesday: [] ... }
+  // Filter branches based on doctor assignments
+  const doctorBranches = branches.filter((b) =>
+    staff?.assignments?.some((a) => a.branchId === b.id)
+  );
+  const displayBranches = doctorBranches.length > 0 ? doctorBranches : branches;
+
+  // Filter rooms in Quick Apply based on doctor assignments
+  const getQuickApplyRooms = () => {
+    return rooms.filter((r) =>
+      r.branchId === quickBranch &&
+      staff?.assignments?.some((a) => a.branchId === quickBranch && (a.roomId === r.id || !a.roomId))
+    );
+  };
+
+  // Filter rooms in each row based on doctor assignments
+  const getRowRooms = (allocBranchId) => {
+    return rooms.filter((r) =>
+      r.branchId === allocBranchId &&
+      staff?.assignments?.some((a) => a.branchId === allocBranchId && (a.roomId === r.id || !a.roomId))
+    );
+  };
+
+  // Configuration for each day of the week: { Monday: [{ shiftId, branchId, roomId }], Tuesday: [] ... }
   const [dayConfig, setDayConfig] = useState(
     DAYS_OF_WEEK.reduce((acc, day) => {
       acc[day.value] = [];
@@ -44,6 +69,8 @@ export default function ScheduleUpdateModal({
 
   useEffect(() => {
     if (visible) {
+      roomService.getRooms().then(setRooms).catch(console.error);
+
       // Reset configs or set from initialSchedules
       const emptyConfig = DAYS_OF_WEEK.reduce((acc, day) => {
         acc[day.value] = [];
@@ -56,6 +83,7 @@ export default function ScheduleUpdateModal({
             emptyConfig[daySched.dayOfWeek] = daySched.shifts.map((s) => ({
               shiftId: s.shiftId,
               branchId: s.branchId,
+              roomId: s.roomId || undefined,
             }));
           }
         });
@@ -64,20 +92,13 @@ export default function ScheduleUpdateModal({
 
       setQuickShift(undefined);
       setQuickBranch(undefined);
+      setQuickRoom(undefined);
       form.resetFields();
 
       const initialEffectiveDate = defaultEffectiveDate || dayjs().add(1, 'week').startOf('week').add(1, 'day');
-
-      if (staff) {
-        form.setFieldsValue({
-          staffIds: [staff.id],
-          effectiveDate: initialEffectiveDate,
-        });
-      } else {
-        form.setFieldsValue({
-          effectiveDate: initialEffectiveDate,
-        });
-      }
+      form.setFieldsValue({
+        effectiveDate: initialEffectiveDate,
+      });
     }
   }, [visible, staff, form, defaultEffectiveDate, initialSchedules]);
 
@@ -87,7 +108,7 @@ export default function ScheduleUpdateModal({
       return;
     }
     const newConfig = DAYS_OF_WEEK.reduce((acc, day) => {
-      acc[day.value] = [{ shiftId: quickShift, branchId: quickBranch }];
+      acc[day.value] = [{ shiftId: quickShift, branchId: quickBranch, roomId: quickRoom || undefined }];
       return acc;
     }, {});
     setDayConfig(newConfig);
@@ -97,7 +118,7 @@ export default function ScheduleUpdateModal({
   const handleAddShiftRow = (dayValue) => {
     setDayConfig({
       ...dayConfig,
-      [dayValue]: [...dayConfig[dayValue], { shiftId: undefined, branchId: undefined }],
+      [dayValue]: [...dayConfig[dayValue], { shiftId: undefined, branchId: undefined, roomId: undefined }],
     });
   };
 
@@ -112,7 +133,11 @@ export default function ScheduleUpdateModal({
 
   const handleShiftRowChange = (dayValue, index, field, value) => {
     const updated = [...dayConfig[dayValue]];
-    updated[index] = { ...updated[index], [field]: value };
+    if (field === 'branchId') {
+      updated[index] = { ...updated[index], [field]: value, roomId: undefined };
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
     setDayConfig({
       ...dayConfig,
       [dayValue]: updated,
@@ -124,7 +149,13 @@ export default function ScheduleUpdateModal({
       const values = await form.validateFields();
       setSubmitting(true);
 
-      // Construct templates payload items
+      const staffIds = [staff?.id];
+      if (!staff?.id) {
+        message.warning('Không tìm thấy thông tin nhân viên');
+        setSubmitting(false);
+        return;
+      }
+
       const items = [];
       let totalAllocations = 0;
 
@@ -140,6 +171,7 @@ export default function ScheduleUpdateModal({
             dayOfWeek: dayValue,
             shiftId: alloc.shiftId,
             branchId: alloc.branchId,
+            roomId: alloc.roomId || null,
           });
           totalAllocations++;
         }
@@ -172,13 +204,17 @@ export default function ScheduleUpdateModal({
 
   return (
     <Modal
-      title={staff ? `Xếp lịch tuần: ${staff.fullName}` : 'Xếp lịch tuần hàng loạt (Cập nhật nhanh)'}
+      title={
+        <div style={{ fontSize: '15px', fontWeight: 600, color: '#1e293b' }}>
+          📅 Thiết lập lịch trực tuần: {staff?.fullName} [{staff?.staffCode}]
+        </div>
+      }
       open={visible}
       onCancel={onClose}
       onOk={handleSubmit}
       confirmLoading={submitting}
       destroyOnClose
-      width={780}
+      width={840}
       size="small"
       okText="Lưu lịch trực"
       cancelText="Hủy"
@@ -186,29 +222,6 @@ export default function ScheduleUpdateModal({
     >
       <Form form={form} layout="vertical" size="small">
         <Row gutter={12}>
-          <Col span={staff ? 12 : 24}>
-            <Form.Item
-              label="Chọn nhân viên áp dụng"
-              name="staffIds"
-              rules={[{ required: true, message: 'Vui lòng chọn nhân viên' }]}
-            >
-              <Select
-                mode="multiple"
-                placeholder="Chọn nhân viên..."
-                disabled={!!staff}
-                showSearch
-                optionFilterProp="label"
-                style={{ width: '100%' }}
-              >
-                {staffList.map((item) => (
-                  <Option key={item.id} value={item.id} label={`${item.staffCode} ${item.fullName}`}>
-                    {item.staffCode} - {item.fullName}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-
           <Col span={12}>
             <Form.Item
               label="Ngày áp dụng có hiệu lực"
@@ -246,11 +259,29 @@ export default function ScheduleUpdateModal({
               placeholder="Chọn chi nhánh"
               style={{ width: 180 }}
               value={quickBranch}
-              onChange={setQuickBranch}
+              onChange={(val) => {
+                setQuickBranch(val);
+                setQuickRoom(undefined);
+              }}
             >
-              {branches.map((b) => (
+              {displayBranches.map((b) => (
                 <Option key={b.id} value={b.id}>
                   {b.name}
+                </Option>
+              ))}
+            </Select>
+            <Select
+              size="small"
+              placeholder="Chọn phòng"
+              style={{ width: 180 }}
+              value={quickRoom}
+              onChange={setQuickRoom}
+              allowClear
+              disabled={!quickBranch}
+            >
+              {getQuickApplyRooms().map((r) => (
+                <Option key={r.id} value={r.id}>
+                  {r.name}
                 </Option>
               ))}
             </Select>
@@ -302,9 +333,25 @@ export default function ScheduleUpdateModal({
                       value={alloc.branchId}
                       onChange={(val) => handleShiftRowChange(day.value, idx, 'branchId', val)}
                     >
-                      {branches.map((b) => (
+                      {displayBranches.map((b) => (
                         <Option key={b.id} value={b.id}>
                           {b.name}
+                        </Option>
+                      ))}
+                    </Select>
+
+                    <Select
+                      size="small"
+                      placeholder="Chọn phòng"
+                      style={{ width: 180 }}
+                      value={alloc.roomId}
+                      onChange={(val) => handleShiftRowChange(day.value, idx, 'roomId', val)}
+                      allowClear
+                      disabled={!alloc.branchId}
+                    >
+                      {getRowRooms(alloc.branchId).map((r) => (
+                        <Option key={r.id} value={r.id}>
+                          {r.name}
                         </Option>
                       ))}
                     </Select>
