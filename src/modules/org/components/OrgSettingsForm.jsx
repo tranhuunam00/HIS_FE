@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, Card, Row, Col, message, Spin, Divider, Badge } from 'antd';
+import { Form, Input, Button, Card, Row, Col, message, Spin, Divider, Badge, Upload } from 'antd';
 import { 
   SaveOutlined, 
   InfoCircleOutlined, 
@@ -10,14 +10,18 @@ import {
   EnvironmentOutlined,
   SafetyCertificateOutlined,
   UserOutlined,
-  TrademarkOutlined
+  TrademarkOutlined,
+  UploadOutlined,
+  LoadingOutlined
 } from '@ant-design/icons';
 import { orgService } from '../../../services/orgService';
+import { medicalService } from '../../../services/medicalService';
 
 export default function OrgSettingsForm() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [orgData, setOrgData] = useState({});
 
   useEffect(() => {
@@ -52,6 +56,38 @@ export default function OrgSettingsForm() {
     }
   };
 
+  const handleLogoUpload = async (file) => {
+    // Basic file validation
+    const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif' || file.type === 'image/webp';
+    if (!isJpgOrPng) {
+      message.error('Bạn chỉ có thể tải lên tệp ảnh JPG/PNG/GIF/WEBP!');
+      return Upload.LIST_IGNORE;
+    }
+    const isLt2M = file.size / 1024 / 1024 < 2;
+    if (!isLt2M) {
+      message.error('Kích thước ảnh phải nhỏ hơn 2MB!');
+      return Upload.LIST_IGNORE;
+    }
+
+    try {
+      setUploading(true);
+      const result = await medicalService.uploadFile(file);
+      if (result && result.url) {
+        form.setFieldValue('logoUrl', result.url);
+        setOrgData(prev => ({ ...prev, logoUrl: result.url }));
+        message.success('Tải ảnh logo lên thành công');
+      } else {
+        throw new Error('Không nhận được đường dẫn ảnh');
+      }
+    } catch (err) {
+      console.error(err);
+      message.error('Tải ảnh logo lên thất bại');
+    } finally {
+      setUploading(false);
+    }
+    return false; // Prevent automatic action of Antd Upload
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0' }}>
@@ -70,6 +106,11 @@ export default function OrgSettingsForm() {
         setOrgData(prev => ({ ...prev, ...allValues }));
       }}
     >
+      {/* Hidden input to store logoUrl so it is submitted with the form */}
+      <Form.Item name="logoUrl" noStyle>
+        <Input type="hidden" />
+      </Form.Item>
+
       <Row gutter={[20, 20]}>
         {/* Left Column: Branding & Summary Card */}
         <Col xs={24} lg={8}>
@@ -85,26 +126,74 @@ export default function OrgSettingsForm() {
             }}
           >
             <div style={{ padding: '20px 0' }}>
-              <div 
-                style={{ 
-                  width: 90, 
-                  height: 90, 
-                  borderRadius: '24px', 
-                  background: 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 8px 20px rgba(24,144,255,0.3)',
-                  marginBottom: 16
-                }}
-              >
-                <MedicineBoxOutlined style={{ fontSize: 42, color: '#fff' }} />
+              
+              {/* Logo Area with Hover Edit Overlay */}
+              <div style={{ position: 'relative', display: 'inline-block', marginBottom: 16 }}>
+                <div 
+                  style={{ 
+                    width: 100, 
+                    height: 100, 
+                    borderRadius: '24px', 
+                    background: orgData.logoUrl ? '#fff' : 'linear-gradient(135deg, #1890ff 0%, #096dd9 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 8px 20px rgba(24,144,255,0.2)',
+                    overflow: 'hidden',
+                    border: orgData.logoUrl ? '3px solid #fff' : 'none',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  {uploading ? (
+                    <LoadingOutlined style={{ fontSize: 32, color: orgData.logoUrl ? '#1890ff' : '#fff' }} />
+                  ) : orgData.logoUrl ? (
+                    <img 
+                      src={orgData.logoUrl} 
+                      alt="Clinic Logo" 
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                    />
+                  ) : (
+                    <MedicineBoxOutlined style={{ fontSize: 48, color: '#fff' }} />
+                  )}
+                </div>
+
+                {/* Upload Button Overlay */}
+                <Upload
+                  showUploadList={false}
+                  beforeUpload={handleLogoUpload}
+                  disabled={uploading}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      bottom: -8,
+                      right: -8,
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      background: '#1890ff',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                      border: '2px solid #fff',
+                      transition: 'all 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1.0)'}
+                  >
+                    <UploadOutlined style={{ fontSize: 14 }} />
+                  </div>
+                </Upload>
               </div>
-              <h2 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 600, color: '#262626' }}>
-                {orgData.shortName || orgData.name || 'DAO CARE'}
+
+              <h2 style={{ margin: '8px 0 4px 0', fontSize: '18px', fontWeight: 600, color: '#262626' }}>
+                {orgData.shortName || 'DAO CARE'}
               </h2>
-              <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#8c8c8c' }}>
-                Hệ thống Quản lý Phòng khám Thông minh
+              <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: '#8c8c8c', padding: '0 8px' }}>
+                {orgData.name || 'Hệ thống Phòng khám DAO CARE'}
               </p>
               
               <div style={{ display: 'inline-block', marginBottom: 24 }}>

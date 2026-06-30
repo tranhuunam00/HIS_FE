@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Select, Switch, Button, Table, Tag, Divider, message } from 'antd';
+import { Modal, Form, Select, Switch, Button, Table, Tag, Divider, message, Row, Col } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { staffService } from '../../../services/staffService';
 import { roomService } from '../../../services/roomService';
@@ -106,13 +106,13 @@ export default function StaffAssignmentModal({ visible, staff, branches, onClose
       await staffService.assignStaff(staff.id, payload);
       message.success('Cập nhật phân công công tác thành công');
       onRefresh();
-      
+
       // We need to refresh the current staff modal state as well
       // Fetch latest staff detail
       const updatedStaff = await staffService.getStaff(staff.id);
       // Update local state or just close/refresh
       onRefresh();
-      
+
       // Reload this modal data as well to reflect changes in table
       staff.assignments = updatedStaff.assignments;
       loadData();
