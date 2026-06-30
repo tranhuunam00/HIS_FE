@@ -19,7 +19,6 @@ export default function ServiceFormModal({ visible, service, specialties, onClos
           code: service.code,
           name: service.name,
           category: service.category,
-          insuranceCode: service.insuranceCode || '',
           description: service.description || '',
           durationMinutes: service.durationMinutes || 15,
           resultDurationHours: service.resultDurationHours || undefined,
@@ -45,7 +44,6 @@ export default function ServiceFormModal({ visible, service, specialties, onClos
         specialtyId: values.specialtyId || null,
         name: values.name,
         category: values.category,
-        insuranceCode: values.insuranceCode || null,
         description: values.description || null,
         durationMinutes: values.durationMinutes,
         resultDurationHours: values.resultDurationHours || null,
@@ -126,7 +124,7 @@ export default function ServiceFormModal({ visible, service, specialties, onClos
         </Row>
 
         <Row gutter={12}>
-          <Col span={8}>
+          <Col span={12}>
             <Form.Item
               label="Phân loại dịch vụ"
               name="category"
@@ -142,7 +140,7 @@ export default function ServiceFormModal({ visible, service, specialties, onClos
               </Select>
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col span={12}>
             <Form.Item
               label="Chuyên khoa liên quan"
               name="specialtyId"
@@ -154,14 +152,6 @@ export default function ServiceFormModal({ visible, service, specialties, onClos
                   </Option>
                 ))}
               </Select>
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              label="Mã bảo hiểm liên thông"
-              name="insuranceCode"
-            >
-              <Input placeholder="Ví dụ: 01.105" />
             </Form.Item>
           </Col>
         </Row>

@@ -152,8 +152,7 @@ export default function ServiceListTable() {
     if (!term) return true;
     return (
       item.name.toLowerCase().includes(term) ||
-      item.code.toLowerCase().includes(term) ||
-      (item.insuranceCode && item.insuranceCode.toLowerCase().includes(term))
+      item.code.toLowerCase().includes(term)
     );
   });
 
@@ -287,7 +286,7 @@ export default function ServiceListTable() {
 
           <Space.Compact size="small" style={{ marginLeft: 8 }}>
             <Input
-              placeholder="Tìm tên, mã, mã bảo hiểm..."
+              placeholder="Tìm tên, mã dịch vụ..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
