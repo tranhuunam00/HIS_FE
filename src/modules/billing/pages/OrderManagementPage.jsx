@@ -39,9 +39,40 @@ const getExecutionStatusTag = (item) => {
   return <Tag color="gold" style={{ margin: 0, fontSize: 10 }}>Chờ thực hiện</Tag>;
 };
 
+const formatDateStr = (date) => {
+  const d = new Date(date);
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${year}-${month}-${day}`;
+};
+
 const getTodayStr = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return formatDateStr(new Date());
+};
+
+const getWeekRange = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(today);
+  monday.setDate(today.getDate() + distanceToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    startDate: formatDateStr(monday),
+    endDate: formatDateStr(sunday),
+  };
+};
+
+const getMonthRange = () => {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return {
+    startDate: formatDateStr(firstDay),
+    endDate: formatDateStr(lastDay),
+  };
 };
 
 const getActivePriceObjectAtDate = (prices, targetDate) => {
@@ -92,6 +123,7 @@ const WORKLIST_SCOPES = {
     'WAITING_RESULTS',
     'COMPLETED',
   ],
+  WAITING_RESULTS: ['WAITING_RESULTS'],
   DONE: ['COMPLETED'],
 };
 
@@ -126,9 +158,11 @@ const getVisitStatusTag = (status) => {
 
 export default function OrderManagementPage() {
   const [visits, setVisits] = useState([]);
+  const [statsVisits, setStatsVisits] = useState([]);
   const [loadingVisits, setLoadingVisits] = useState(false);
   const [searchVisitText, setSearchVisitText] = useState('');
-  const [worklistDate, setWorklistDate] = useState(getTodayStr());
+  const [dateFilterType, setDateFilterType] = useState('TODAY');
+  const [customDate, setCustomDate] = useState(getTodayStr());
   const [serviceFilterId, setServiceFilterId] = useState(undefined);
   const [worklistScope, setWorklistScope] = useState('OPEN');
   const [selectedVisit, setSelectedVisit] = useState(null);
@@ -176,7 +210,7 @@ export default function OrderManagementPage() {
 
   useEffect(() => {
     fetchVisits();
-  }, [activeBranchId, currentUser?.staff?.id, currentUser?.roleName, worklistDate, serviceFilterId]);
+  }, [activeBranchId, currentUser?.staff?.id, currentUser?.roleName, dateFilterType, customDate, serviceFilterId]);
 
   useEffect(() => {
     const handleBranchChange = () => {
@@ -222,14 +256,50 @@ export default function OrderManagementPage() {
     return branchPerm ? !!branchPerm[permissionField] : false;
   };
 
+  const fetchStatsVisits = async () => {
+    if (!activeBranchId) return;
+    try {
+      const today = new Date();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(today.getDate() - 7);
+
+      const params = {
+        branchId: activeBranchId,
+        startDate: formatDateStr(sevenDaysAgo),
+        endDate: formatDateStr(today),
+      };
+
+      const list = await visitService.getVisits(params);
+      setStatsVisits(list);
+    } catch (err) {
+      console.error("Error loading queue stats:", err);
+    }
+  };
+
   const fetchVisits = async () => {
     if (!activeBranchId || !currentUser) return;
     try {
       setLoadingVisits(true);
+      fetchStatsVisits(); // Load total clinic stats concurrently
+
       const params = {
         branchId: activeBranchId,
-        date: worklistDate,
       };
+
+      if (dateFilterType === 'TODAY') {
+        params.date = getTodayStr();
+      } else if (dateFilterType === 'WEEK') {
+        const week = getWeekRange();
+        params.startDate = week.startDate;
+        params.endDate = week.endDate;
+      } else if (dateFilterType === 'MONTH') {
+        const month = getMonthRange();
+        params.startDate = month.startDate;
+        params.endDate = month.endDate;
+      } else if (dateFilterType === 'CUSTOM') {
+        params.date = customDate;
+      }
+
       if (['DOCTOR', 'NURSE', 'TECHNICIAN'].includes(currentUser.roleName) && currentUser.staff?.id) {
         params.doctorId = currentUser.staff.id;
       }
@@ -857,14 +927,86 @@ export default function OrderManagementPage() {
                 style={{ marginBottom: 12 }}
               />
             )}
+            {/* Box 1: 7 days stats (Unfiltered) */}
+            <div style={{ marginBottom: 10, borderBottom: '1px dashed #e2e8f0', paddingBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#475569', marginBottom: 4 }}>
+                📊 THỐNG KÊ 7 NGÀY GẦN NHẤT
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '6px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+                <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐANG ĐỢI</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
+                    {statsVisits.filter(v => ['WAITING_CLINICAL_EXAM', 'WAITING_SERVICE', 'WAITING_CONCLUSION'].includes(v.status)).length}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐANG KHÁM</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>
+                    {statsVisits.filter(v => ['IN_CLINICAL_EXAM', 'IN_SERVICE', 'IN_CONCLUSION'].includes(v.status)).length}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>CHỜ KQ</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#db2777' }}>
+                    {statsVisits.filter(v => v.status === 'WAITING_RESULTS').length}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐÃ XONG</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                    {statsVisits.filter(v => v.status === 'COMPLETED').length}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Box 2: Active Filter Stats (Filtered) */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#15803d', marginBottom: 4 }}>
+                🔍 THỐNG KÊ THEO BỘ LỌC ĐANG CHỌN
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '6px 8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6 }}>
+                <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐANG ĐỢI</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
+                    {visits.filter(v => ['WAITING_CLINICAL_EXAM', 'WAITING_SERVICE', 'WAITING_CONCLUSION'].includes(v.status)).length}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐANG KHÁM</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>
+                    {visits.filter(v => ['IN_CLINICAL_EXAM', 'IN_SERVICE', 'IN_CONCLUSION'].includes(v.status)).length}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #bbf7d0' }}>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>CHỜ KQ</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#db2777' }}>
+                    {visits.filter(v => v.status === 'WAITING_RESULTS').length}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flex: 1 }}>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐÃ XONG</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
+                    {visits.filter(v => v.status === 'COMPLETED').length}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
               <Row gutter={[6, 6]}>
                 <Col span={10}>
-                  <Input
-                    type="date"
-                    value={worklistDate}
-                    onChange={(e) => setWorklistDate(e.target.value || getTodayStr())}
+                  <Select
+                    value={dateFilterType}
+                    onChange={setDateFilterType}
                     size="small"
+                    style={{ width: '100%' }}
+                    options={[
+                      { value: 'TODAY', label: 'Hôm nay' },
+                      { value: 'WEEK', label: 'Tuần này' },
+                      { value: 'MONTH', label: 'Tháng này' },
+                      { value: 'CUSTOM', label: 'Chọn ngày...' },
+                    ]}
                   />
                 </Col>
                 <Col span={14}>
@@ -884,6 +1026,19 @@ export default function OrderManagementPage() {
                   />
                 </Col>
               </Row>
+              {dateFilterType === 'CUSTOM' && (
+                <Row gutter={[6, 6]}>
+                  <Col span={24}>
+                    <Input
+                      type="date"
+                      value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value || getTodayStr())}
+                      size="small"
+                      style={{ width: '100%' }}
+                    />
+                  </Col>
+                </Row>
+              )}
               <Row gutter={[6, 6]}>
                 <Col span={18}>
                   <Select
@@ -894,6 +1049,7 @@ export default function OrderManagementPage() {
                     options={[
                       { value: 'OPEN', label: 'Chờ + đang xử lý' },
                       { value: 'ACCEPTED', label: 'Đã/đang nhận' },
+                      { value: 'WAITING_RESULTS', label: 'Chờ trả kết quả' },
                       { value: 'DONE', label: 'Hoàn thành' },
                       { value: 'ALL', label: 'Tất cả trạng thái' },
                     ]}
@@ -917,7 +1073,7 @@ export default function OrderManagementPage() {
               prefix={<SearchOutlined />}
               value={searchVisitText}
               onChange={e => setSearchVisitText(e.target.value)}
-              style={{ marginBottom: 12 }}
+              style={{ marginBottom: 8 }}
               size="small"
               allowClear
             />
