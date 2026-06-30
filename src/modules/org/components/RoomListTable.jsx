@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Tag, Space, Switch, Card, Select, Input, Tooltip, Spin, Row, Col, message } from 'antd';
-import { PlusOutlined, EditOutlined, SearchOutlined, ClusterOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, SearchOutlined, ClusterOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import { roomService } from '../../../services/roomService';
 import { orgService } from '../../../services/orgService';
 import { medicalService } from '../../../services/medicalService';
 import { resourceService } from '../../../services/resourceService';
 import RoomFormModal from './RoomFormModal';
 import RoomResourcesModal from './RoomResourcesModal';
+import RoomStaffAssignmentModal from './RoomStaffAssignmentModal';
 
 const { Option } = Select;
 
@@ -32,6 +33,9 @@ export default function RoomListTable() {
   
   const [resourcesModalVisible, setResourcesModalVisible] = useState(false);
   const [selectedRoomForResources, setSelectedRoomForResources] = useState(null);
+
+  const [staffAssignmentModalVisible, setStaffAssignmentModalVisible] = useState(false);
+  const [selectedRoomForStaff, setSelectedRoomForStaff] = useState(null);
 
   useEffect(() => {
     initData();
@@ -155,6 +159,11 @@ export default function RoomListTable() {
     setResourcesModalVisible(true);
   };
 
+  const handleOpenStaffAssignment = (room) => {
+    setSelectedRoomForStaff(room);
+    setStaffAssignmentModalVisible(true);
+  };
+
   const getSpecialtyName = (id) => {
     if (!id) return null;
     const spec = specialties.find((s) => s.id === id);
@@ -266,6 +275,15 @@ export default function RoomListTable() {
               style={{ color: '#13c2c2' }}
             />
           </Tooltip>
+          <Tooltip title="Phân công bác sĩ">
+            <Button
+              type="text"
+              icon={<UsergroupAddOutlined />}
+              onClick={() => handleOpenStaffAssignment(record)}
+              size="small"
+              style={{ color: '#722ed1' }}
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -364,6 +382,9 @@ export default function RoomListTable() {
                           </Tooltip>,
                           <Tooltip title="Thiết bị / Tài nguyên" key="resources">
                             <Button type="text" size="small" icon={<ClusterOutlined />} onClick={() => handleOpenResources(room)} style={{ color: '#13c2c2' }} />
+                          </Tooltip>,
+                          <Tooltip title="Phân công bác sĩ" key="staff">
+                            <Button type="text" size="small" icon={<UsergroupAddOutlined />} onClick={() => handleOpenStaffAssignment(room)} style={{ color: '#722ed1' }} />
                           </Tooltip>
                         ]}
                         style={{ border: '1px solid #f0f0f0', borderRadius: '4px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}
@@ -430,6 +451,13 @@ export default function RoomListTable() {
         visible={resourcesModalVisible}
         room={selectedRoomForResources}
         onClose={() => setResourcesModalVisible(false)}
+        onRefresh={() => fetchRooms(selectedBranchId)}
+      />
+      <RoomStaffAssignmentModal
+        visible={staffAssignmentModalVisible}
+        room={selectedRoomForStaff}
+        branchId={selectedBranchId}
+        onClose={() => setStaffAssignmentModalVisible(false)}
         onRefresh={() => fetchRooms(selectedBranchId)}
       />
     </Card>

@@ -26,4 +26,9 @@ export const roomService = {
     const res = await api.patch(`/rooms/${id}/status`, { isActive });
     return res.data;
   },
+
+  assignStaffs: async (roomId, staffIds) => {
+    const res = await api.post(`/rooms/${roomId}/staffs`, { staffIds });
+    return res.data;
+  },
 };
