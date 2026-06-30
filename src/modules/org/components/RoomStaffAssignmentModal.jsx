@@ -19,14 +19,25 @@ export default function RoomStaffAssignmentModal({ visible, room, branchId, onCl
   const [staffList, setStaffList] = useState([]);
   const [filteredStaff, setFilteredStaff] = useState([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
     if (visible && room && branchId) {
+      loadRooms();
       loadStaff();
       setSearchText('');
     }
   }, [visible, room, branchId]);
+
+  const loadRooms = async () => {
+    try {
+      const list = await roomService.getRooms(branchId);
+      setRooms(list);
+    } catch (err) {
+      console.error('Không thể tải danh sách phòng:', err);
+    }
+  };
 
   const loadStaff = async () => {
     try {
@@ -97,17 +108,28 @@ export default function RoomStaffAssignmentModal({ visible, room, branchId, onCl
     onChange: onSelectChange,
   };
 
-  const getAssignedRoomName = (record) => {
-    // Find the assignment of this staff for the current branch
-    const branchAssign = (record.assignments || []).find((a) => a.branchId === branchId);
-    if (!branchAssign || !branchAssign.roomId) return null;
-    
-    // If assigned to current room, return label "Phòng hiện tại"
-    if (branchAssign.roomId === room.id) {
-      return <Tag color="success">Phòng hiện tại</Tag>;
-    }
-    // Note: We don't have the names of other rooms directly, but we can query them or just display "Đã gán phòng khác"
-    return <Tag color="warning">Đã gán phòng khác</Tag>;
+  const getAssignedRooms = (record) => {
+    const branchAssigns = (record.assignments || []).filter((a) => a.branchId === branchId && a.roomId);
+    if (branchAssigns.length === 0) return null;
+
+    const currentAssign = branchAssigns.find(a => a.roomId === room.id);
+    const otherAssigns = branchAssigns.filter(a => a.roomId !== room.id);
+
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        {currentAssign && (
+          <Tag color="success" style={{ fontWeight: 600 }}>Phòng hiện tại</Tag>
+        )}
+        {otherAssigns.map(a => {
+          const r = rooms.find(item => item.id === a.roomId);
+          return (
+            <Tag color="orange" key={a.id} style={{ fontWeight: 500 }}>
+              {r ? r.name : 'Phòng khác'}
+            </Tag>
+          );
+        })}
+      </div>
+    );
   };
 
   const columns = [
@@ -139,7 +161,7 @@ export default function RoomStaffAssignmentModal({ visible, room, branchId, onCl
       title: 'Trạng thái phân công',
       key: 'status',
       width: '30%',
-      render: (_, record) => getAssignedRoomName(record) || <span style={{ color: '#bfbfbf' }}>Chưa gán</span>,
+      render: (_, record) => getAssignedRooms(record) || <span style={{ color: '#bfbfbf' }}>Chưa gán</span>,
     },
   ];
 

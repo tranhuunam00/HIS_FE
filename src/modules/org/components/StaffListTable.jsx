@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { staffService } from '../../../services/staffService';
 import { orgService } from '../../../services/orgService';
+import { roomService } from '../../../services/roomService';
 import StaffFormModal from './StaffFormModal';
 import StaffCertificateModal from './StaffCertificateModal';
 import StaffAssignmentModal from './StaffAssignmentModal';
@@ -34,6 +35,7 @@ export default function StaffListTable() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [rooms, setRooms] = useState([]);
 
   // Filters State
   const [selectedBranchId, setSelectedBranchId] = useState('ALL');
@@ -68,10 +70,12 @@ export default function StaffListTable() {
   const initData = async () => {
     try {
       setLoading(true);
-      const [branchList] = await Promise.all([
+      const [branchList, roomList] = await Promise.all([
         orgService.getBranches(),
+        roomService.getRooms(),
       ]);
       setBranches(branchList);
+      setRooms(roomList);
 
       const activeId = localStorage.getItem('activeBranchId');
       const storedExists = branchList.some(b => b.id === activeId);
@@ -180,7 +184,7 @@ export default function StaffListTable() {
       title: 'Họ và tên',
       dataIndex: 'fullName',
       key: 'fullName',
-      width: '18%',
+      width: '15%',
       render: (text, record) => (
         <div>
           <div style={{ fontWeight: 600 }}>{text} {record.nickname ? `(${record.nickname})` : ''}</div>
@@ -191,7 +195,7 @@ export default function StaffListTable() {
       title: 'Chức danh',
       dataIndex: 'title',
       key: 'title',
-      width: '12%',
+      width: '10%',
       render: (title) => {
         const tag = TITLE_TAGS[title] || { color: 'default', label: title };
         return <Tag color={tag.color}>{tag.label}</Tag>;
@@ -201,15 +205,50 @@ export default function StaffListTable() {
       title: 'Giới tính',
       dataIndex: 'gender',
       key: 'gender',
-      width: '8%',
+      width: '6%',
       render: (gender) => GENDER_MAP[gender] || gender,
+    },
+    {
+      title: 'Nơi công tác',
+      key: 'workplace',
+      width: '18%',
+      render: (_, record) => {
+        const assigns = record.assignments || [];
+        if (assigns.length === 0) return <span style={{ color: '#bfbfbf', fontSize: '12px' }}>Chưa phân công</span>;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+            {assigns.map((a) => {
+              const b = branches.find((item) => item.id === a.branchId);
+              const r = rooms.find((item) => item.id === a.roomId);
+              const bName = b ? b.name.split(' - ')[0] : 'CN';
+              const rName = r ? r.name : 'Chờ phân phòng';
+              return (
+                <div key={a.id} style={{ display: 'inline-flex' }}>
+                  <Tag 
+                    color={a.isPrimary ? 'blue' : 'default'} 
+                    style={{ 
+                      fontSize: '11px', 
+                      margin: 0, 
+                      padding: '1px 6px', 
+                      borderRadius: '4px',
+                      fontWeight: a.isPrimary ? 600 : 'normal'
+                    }}
+                  >
+                    {bName} - {rName} {a.isPrimary ? '★' : ''}
+                  </Tag>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
     },
     {
       title: 'Thông tin liên hệ',
       key: 'contact',
-      width: '20%',
+      width: '14%',
       render: (_, record) => (
-        <div>
+        <div style={{ fontSize: '13px' }}>
           <div>{record.phone}</div>
           <small style={{ color: '#8c8c8c' }}>{record.email}</small>
         </div>
@@ -219,14 +258,14 @@ export default function StaffListTable() {
       title: 'Ngày vào làm',
       dataIndex: 'joinDate',
       key: 'joinDate',
-      width: '12%',
+      width: '11%',
       render: (val) => new Date(val).toLocaleDateString('vi-VN'),
     },
     {
       title: 'Trạng thái',
       dataIndex: 'isActive',
       key: 'isActive',
-      width: '10%',
+      width: '8%',
       render: (isActive, record) => (
         <Switch
           size="small"
@@ -238,7 +277,7 @@ export default function StaffListTable() {
     {
       title: 'Thao tác',
       key: 'action',
-      width: '10%',
+      width: '8%',
       render: (_, record) => (
         <Space size="small">
           <Tooltip title="Sửa hồ sơ">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, DatePicker, Row, Col, message, Spin, Tabs, Upload, Card, Tag, Table, Button, Divider, Avatar } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, Row, Col, message, Spin, Tabs, Upload, Card, Tag, Table, Button, Divider, Avatar, Switch } from 'antd';
 import { 
   UserOutlined, 
   SafetyCertificateOutlined, 
@@ -13,7 +13,12 @@ import {
   IdcardOutlined,
   CalendarOutlined,
   SolutionOutlined,
-  DoubleRightOutlined
+  DoubleRightOutlined,
+  SaveOutlined,
+  DeleteOutlined,
+  StarOutlined,
+  DisconnectOutlined,
+  CompassOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { staffService } from '../../../services/staffService';
@@ -49,9 +54,19 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   
+  // Metadata & Assignments States
   const [rooms, setRooms] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [specialties, setSpecialties] = useState([]);
+  const [filteredAssignRooms, setFilteredAssignRooms] = useState([]);
   
+  // Sub-form States for Phân công (Assignments)
+  const [assignBranchId, setAssignBranchId] = useState(undefined);
+  const [assignRoomId, setAssignRoomId] = useState(undefined);
+  const [assignSpecialtyId, setAssignSpecialtyId] = useState(undefined);
+  const [assignIsPrimary, setAssignIsPrimary] = useState(false);
+  const [assignSubmitting, setAssignSubmitting] = useState(false);
+
   const isEdit = !!staff;
 
   useEffect(() => {
@@ -111,14 +126,53 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
 
   const fetchMetadata = async () => {
     try {
-      const [roomList, branchList] = await Promise.all([
+      const [roomList, branchList, specList] = await Promise.all([
         roomService.getRooms(),
-        orgService.getBranches()
+        orgService.getBranches(),
+        medicalService.getSpecialties()
       ]);
       setRooms(roomList);
       setBranches(branchList);
+      setSpecialties(specList);
+
+      // Pre-select first branch for assignment
+      if (staff && branchList.length > 0) {
+        const defaultBranchId = branchList[0].id;
+        setAssignBranchId(defaultBranchId);
+        const filtered = roomList.filter(r => r.branchId === defaultBranchId && r.isActive);
+        setFilteredAssignRooms(filtered);
+
+        const existing = staff.assignments?.find(a => a.branchId === defaultBranchId);
+        if (existing) {
+          setAssignRoomId(existing.roomId || undefined);
+          setAssignSpecialtyId(existing.specialtyId || undefined);
+          setAssignIsPrimary(existing.isPrimary);
+        } else {
+          setAssignRoomId(undefined);
+          setAssignSpecialtyId(undefined);
+          setAssignIsPrimary(false);
+        }
+      }
     } catch (err) {
       console.error('Không thể tải metadata cho StaffFormModal:', err);
+    }
+  };
+
+  const handleAssignBranchChange = (value) => {
+    setAssignBranchId(value);
+    setAssignRoomId(undefined);
+    const filtered = rooms.filter(r => r.branchId === value && r.isActive);
+    setFilteredAssignRooms(filtered);
+
+    // Look up if staff already has assignment in this branch to prefill
+    const existing = staff?.assignments?.find(a => a.branchId === value);
+    if (existing) {
+      setAssignRoomId(existing.roomId || undefined);
+      setAssignSpecialtyId(existing.specialtyId || undefined);
+      setAssignIsPrimary(existing.isPrimary);
+    } else {
+      setAssignSpecialtyId(undefined);
+      setAssignIsPrimary(false);
     }
   };
 
@@ -244,17 +298,96 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
     if (changed.email !== undefined) setEmail(changed.email);
   };
 
+  // Actions for Assignments
+  const handleSaveAssignment = async () => {
+    if (!assignBranchId) {
+      message.error('Vui lòng chọn chi nhánh phân công');
+      return;
+    }
+    try {
+      setAssignSubmitting(true);
+
+      const existing = staff.assignments?.find(
+        (a) => a.branchId === assignBranchId && a.roomId === (assignRoomId || null)
+      );
+
+      const payload = {
+        id: existing ? existing.id : undefined,
+        branchId: assignBranchId,
+        specialtyId: assignSpecialtyId || null,
+        roomId: assignRoomId || null,
+        isPrimary: assignIsPrimary,
+      };
+      await staffService.assignStaff(staff.id, payload);
+      message.success('Cập nhật phân công công tác thành công');
+      
+      const updatedStaff = await staffService.getStaff(staff.id);
+      staff.assignments = updatedStaff.assignments;
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Có lỗi xảy ra khi lưu phân công');
+    } finally {
+      setAssignSubmitting(false);
+    }
+  };
+
+  const handleSetPrimary = async (assign) => {
+    try {
+      const payload = {
+        id: assign.id,
+        branchId: assign.branchId,
+        specialtyId: assign.specialtyId,
+        roomId: assign.roomId,
+        isPrimary: true,
+      };
+      await staffService.assignStaff(staff.id, payload);
+      message.success('Đã đặt làm nơi làm việc chính');
+      
+      const updatedStaff = await staffService.getStaff(staff.id);
+      staff.assignments = updatedStaff.assignments;
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      message.error('Đặt làm nơi làm việc chính thất bại');
+    }
+  };
+
+  const handleClearRoom = async (assign) => {
+    try {
+      const payload = {
+        id: assign.id,
+        branchId: assign.branchId,
+        specialtyId: null,
+        roomId: null,
+        isPrimary: false,
+      };
+      await staffService.assignStaff(staff.id, payload);
+      message.success('Đã gỡ phòng làm việc khỏi chi nhánh này');
+      
+      const updatedStaff = await staffService.getStaff(staff.id);
+      staff.assignments = updatedStaff.assignments;
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+      message.error('Gỡ phòng làm việc thất bại');
+    }
+  };
+
   // Render assignments list table
   const renderAssignmentsTab = () => {
-    const list = staff?.assignments || [];
-    if (list.length === 0) {
+    if (!isEdit) {
       return (
         <div style={{ textAlign: 'center', padding: '60px 0', background: '#fcfcfc', borderRadius: '12px', border: '1px solid #f0f0f0' }}>
           <HomeOutlined style={{ fontSize: 48, marginBottom: 12, color: '#d9d9d9' }} />
-          <div style={{ fontSize: '14px', color: '#8c8c8c' }}>Nhân sự này chưa được phân công phòng làm việc hoặc chi nhánh nào.</div>
+          <div style={{ fontSize: '14px', color: '#8c8c8c', maxWidth: 500, margin: '0 auto', lineHeight: '1.5' }}>
+            Nơi làm việc mặc định của nhân sự sẽ là chi nhánh hiện hành. Bạn có thể phân công chi tiết thêm phòng khám/chi nhánh khác sau khi tạo mới hồ sơ thành công.
+          </div>
         </div>
       );
     }
+
+    const list = staff?.assignments || [];
 
     const columns = [
       {
@@ -275,9 +408,9 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
         title: 'Phòng khám / Phòng chuyên môn',
         dataIndex: 'roomId',
         key: 'roomId',
-        width: '45%',
+        width: '40%',
         render: (roomId) => {
-          if (!roomId) return <span style={{ color: '#bfbfbf' }}>Chưa được gán phòng</span>;
+          if (!roomId) return <span style={{ color: '#bfbfbf', fontSize: '13px' }}>Chưa gán phòng (Chờ phân công)</span>;
           const r = rooms.find(item => item.id === roomId);
           return r ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -293,29 +426,125 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
         title: 'Vai trò',
         dataIndex: 'isPrimary',
         key: 'isPrimary',
-        width: '20%',
+        width: '12%',
         render: (isPrimary) => isPrimary ? (
           <Tag color="blue" style={{ borderRadius: '4px', fontWeight: 600 }}>Cơ sở chính</Tag>
         ) : (
           <Tag color="default" style={{ borderRadius: '4px' }}>Kiêm nhiệm</Tag>
         )
+      },
+      {
+        title: 'Hành động',
+        key: 'actions',
+        width: '13%',
+        render: (_, record) => (
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {!record.isPrimary && (
+              <Button 
+                type="link" 
+                size="small" 
+                icon={<StarOutlined />}
+                onClick={() => handleSetPrimary(record)}
+                style={{ padding: 0, fontSize: '12px' }}
+              >
+                Đặt làm chính
+              </Button>
+            )}
+            {record.roomId && (
+              <Button 
+                type="link" 
+                danger 
+                size="small" 
+                icon={<DisconnectOutlined />}
+                onClick={() => handleClearRoom(record)}
+                style={{ padding: 0, fontSize: '12px' }}
+              >
+                Gỡ phòng
+              </Button>
+            )}
+          </div>
+        )
       }
     ];
 
     return (
-      <div style={{ padding: '8px 4px' }}>
-        <div style={{ marginBottom: 16, color: '#8c8c8c', fontSize: '13px' }}>
-          Danh sách các địa điểm công tác được phân quyền và điều phối lịch trực cho nhân sự này.
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Assignment Form Section */}
+        <Card 
+          size="small" 
+          bordered={false} 
+          bodyStyle={{ padding: '16px' }}
+          style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: '12px' }}
+        >
+          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1890ff', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CompassOutlined /> Thêm mới / Cập nhật phân công công tác
+          </div>
+          
+          <Row gutter={[12, 12]} align="bottom">
+            <Col xs={24} sm={8}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: '#595959', marginBottom: 6 }}>Chọn Chi nhánh</div>
+              <Select 
+                style={{ width: '100%' }} 
+                placeholder="Chọn chi nhánh" 
+                value={assignBranchId}
+                onChange={handleAssignBranchChange}
+              >
+                {branches.map(b => (
+                  <Option key={b.id} value={b.id}>{b.name}</Option>
+                ))}
+              </Select>
+            </Col>
+            
+            <Col xs={24} sm={8}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: '#595959', marginBottom: 6 }}>Phòng làm việc</div>
+              <Select 
+                style={{ width: '100%' }} 
+                placeholder="Chọn phòng làm việc" 
+                value={assignRoomId}
+                onChange={setAssignRoomId}
+                allowClear
+              >
+                {filteredAssignRooms.map(r => (
+                  <Option key={r.id} value={r.id}>{r.name} ({r.code})</Option>
+                ))}
+              </Select>
+            </Col>
+
+            <Col xs={12} sm={4} style={{ textAlign: 'center', paddingBottom: 6 }}>
+              <div style={{ fontSize: '12px', fontWeight: 500, color: '#595959', marginBottom: 6 }}>Cơ sở chính?</div>
+              <Switch checked={assignIsPrimary} onChange={setAssignIsPrimary} checkedChildren="Có" unCheckedChildren="Không" />
+            </Col>
+
+            <Col xs={12} sm={4}>
+              <Button 
+                type="primary" 
+                icon={<SaveOutlined />} 
+                onClick={handleSaveAssignment}
+                loading={assignSubmitting}
+                style={{ width: '100%', borderRadius: '8px' }}
+              >
+                Áp dụng
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Existing Assignments Table Section */}
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: '#262626', marginBottom: 8 }}>
+            Danh sách địa điểm công tác hiện tại
+          </div>
+          <Table 
+            dataSource={list} 
+            columns={columns} 
+            rowKey="id" 
+            size="middle" 
+            pagination={false} 
+            bordered
+            locale={{ emptyText: 'Nhân viên này chưa có phân công nào' }}
+            style={{ background: '#fff', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+          />
         </div>
-        <Table 
-          dataSource={list} 
-          columns={columns} 
-          rowKey="id" 
-          size="middle" 
-          pagination={false} 
-          bordered
-          style={{ background: '#fff', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
-        />
       </div>
     );
   };
@@ -465,8 +694,8 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
                       rules={[
                         { required: true, message: 'Vui lòng điền mã NV' },
                         { pattern: /^[A-Z0-9_]+$/, message: 'Mã chỉ gồm chữ in hoa, số' }
-                  ]}
-                >
+                      ]}
+                    >
                       <Input placeholder="NV0001" disabled={isEdit} style={{ borderRadius: '8px' }} />
                     </Form.Item>
                   </Col>
@@ -547,6 +776,7 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
                     </Form.Item>
                   </Col>
                 </Row>
+
                 <Row gutter={[16, 16]}>
                   <Col span={12}>
                     <Form.Item label={<span style={{ fontWeight: 500 }}>Học hàm</span>} name="academicTitle">
