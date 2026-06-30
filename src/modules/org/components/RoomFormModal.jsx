@@ -112,6 +112,8 @@ export default function RoomFormModal({ visible, room, branchId, specialties, se
                 <Option value="PROCEDURE">Phòng thủ thuật (PROCEDURE)</Option>
                 <Option value="LABORATORY">Phòng xét nghiệm (LABORATORY)</Option>
                 <Option value="IMAGING">Chẩn đoán hình ảnh (IMAGING)</Option>
+                <Option value="RECEPTION">Lễ tân & Điều phối (RECEPTION)</Option>
+                <Option value="ACCOUNTING">Kế toán & Thu ngân (ACCOUNTING)</Option>
               </Select>
             </Form.Item>
           </Col>

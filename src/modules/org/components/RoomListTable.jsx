@@ -15,6 +15,8 @@ const TYPE_TAGS = {
   PROCEDURE: { color: 'purple', label: 'Phòng thủ thuật' },
   LABORATORY: { color: 'orange', label: 'Phòng xét nghiệm' },
   IMAGING: { color: 'magenta', label: 'Chẩn đoán hình ảnh' },
+  RECEPTION: { color: 'cyan', label: 'Lễ tân & Điều phối' },
+  ACCOUNTING: { color: 'gold', label: 'Kế toán & Thu ngân' },
 };
 
 export default function RoomListTable() {
