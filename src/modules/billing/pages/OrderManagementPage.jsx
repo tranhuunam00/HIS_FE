@@ -164,7 +164,7 @@ export default function OrderManagementPage() {
   const [dateFilterType, setDateFilterType] = useState('TODAY');
   const [customDate, setCustomDate] = useState(getTodayStr());
   const [serviceFilterId, setServiceFilterId] = useState(undefined);
-  const [worklistScope, setWorklistScope] = useState('OPEN');
+  const [worklistScope, setWorklistScope] = useState('WAITING');
   const [selectedVisit, setSelectedVisit] = useState(null);
   
   const [order, setOrder] = useState(null);
@@ -219,6 +219,44 @@ export default function OrderManagementPage() {
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
+
+  const getRoomScopedStatus = (v) => {
+    const roomId = v.currentRoomId;
+    if (!roomId) return getVisitStatusTag(v.status);
+    
+    const currentRoom = rooms.find(r => r.id === roomId);
+    if (!currentRoom) return getVisitStatusTag(v.status);
+    
+    if (currentRoom.type === 'CLINIC') {
+      if (['WAITING_CLINICAL_EXAM', 'WAITING_CONCLUSION'].includes(v.status)) {
+        return <Tag color="orange" style={{ margin: 0, fontSize: 10 }}>Chờ thực hiện</Tag>;
+      }
+      if (['IN_CLINICAL_EXAM', 'IN_CONCLUSION'].includes(v.status)) {
+        return <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Đang thực hiện</Tag>;
+      }
+      return <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã hoàn thành</Tag>;
+    }
+    
+    const orderItems = v.order?.items || [];
+    const serviceIds = currentRoom.serviceIds || [];
+    const roomItems = orderItems.filter(item => serviceIds.includes(item.serviceId));
+    
+    if (roomItems.length === 0) {
+      return getVisitStatusTag(v.status);
+    }
+    
+    const allDone = roomItems.every(item => item.status === 'COMPLETED' && item.resultStatus !== 'PENDING');
+    if (allDone) {
+      return <Tag color="green" style={{ margin: 0, fontSize: 10 }}>Đã hoàn thành</Tag>;
+    }
+    
+    const anyActive = roomItems.some(item => item.status === 'IN_PROGRESS' || item.status === 'COMPLETED');
+    if (anyActive) {
+      return <Tag color="blue" style={{ margin: 0, fontSize: 10 }}>Đang thực hiện</Tag>;
+    }
+    
+    return <Tag color="orange" style={{ margin: 0, fontSize: 10 }}>Chờ thực hiện</Tag>;
+  };
 
   const loadMetadata = async () => {
     if (!activeBranchId) return;
@@ -462,6 +500,43 @@ export default function OrderManagementPage() {
     }
   };
 
+  const handleCompleteRoomServices = async () => {
+    if (!selectedVisit || !order) return;
+    const roomId = selectedVisit.currentRoomId;
+    const currentRoom = roomId ? rooms.find(r => r.id === roomId) : null;
+    if (!currentRoom) return;
+    
+    const serviceIds = currentRoom.serviceIds || [];
+    const roomItems = order.items?.filter(item => serviceIds.includes(item.serviceId) && item.status !== 'COMPLETED') || [];
+    
+    if (roomItems.length === 0) {
+      message.info('Tất cả dịch vụ của phòng này đã được hoàn thành');
+      return;
+    }
+    
+    try {
+      setLoadingOrder(true);
+      for (const item of roomItems) {
+        await billingService.updateOrderItem(order.id, item.id, {
+          status: 'COMPLETED',
+          resultStatus: 'COMPLETED',
+          resultNotes: item.resultNotes || 'Đã thực hiện',
+          performedById: currentUser?.staff?.id
+        });
+      }
+      message.success('Đã hoàn tất tất cả dịch vụ của phòng này!');
+      fetchOrder(selectedVisit.id);
+      fetchVisits();
+      const updatedVisit = await visitService.getVisitById(selectedVisit.id);
+      setSelectedVisit(updatedVisit);
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.message || 'Không thể hoàn tất các dịch vụ');
+    } finally {
+      setLoadingOrder(false);
+    }
+  };
+
   const fetchDoctorsForRoom = async (roomId) => {
     if (!roomId) {
       setRoomDoctors([]);
@@ -594,67 +669,72 @@ export default function OrderManagementPage() {
     setResultNotes('');
   };
 
-  const filteredVisits = visits.filter(v => {
-    if (worklistScope !== 'ALL') {
-      const allowedStatuses = WORKLIST_SCOPES[worklistScope] || [];
-      if (!allowedStatuses.includes(v.status)) return false;
+  const getVisitRoomStatus = (v) => {
+    const roomId = v.currentRoomId;
+    if (!roomId) return 'WAITING';
+    
+    const currentRoom = rooms.find(r => r.id === roomId);
+    if (!currentRoom) return 'WAITING';
+    
+    if (currentRoom.type === 'CLINIC') {
+      if (['WAITING_CLINICAL_EXAM', 'WAITING_CONCLUSION'].includes(v.status)) {
+        return 'WAITING';
+      }
+      if (['IN_CLINICAL_EXAM', 'IN_CONCLUSION'].includes(v.status)) {
+        return 'IN_PROGRESS';
+      }
+      if (v.status === 'WAITING_RESULTS') {
+        return 'WAITING_RESULTS';
+      }
+      return 'DONE';
     }
+    
+    const orderItems = v.order?.items || [];
+    const serviceIds = currentRoom.serviceIds || [];
+    const roomItems = orderItems.filter(item => serviceIds.includes(item.serviceId));
+    
+    if (roomItems.length === 0) {
+      return 'WAITING';
+    }
+    
+    const allDone = roomItems.every(item => item.status === 'COMPLETED' && item.resultStatus !== 'PENDING');
+    if (allDone) {
+      return 'DONE';
+    }
+    
+    const hasWaitingResults = roomItems.some(item => item.status === 'COMPLETED' && item.resultStatus === 'PENDING');
+    if (hasWaitingResults) {
+      return 'WAITING_RESULTS';
+    }
+    
+    const anyActive = roomItems.some(item => item.status === 'IN_PROGRESS' || item.status === 'COMPLETED' || item.performedById);
+    if (anyActive) {
+      return 'IN_PROGRESS';
+    }
+    
+    return 'WAITING';
+  };
 
-    // Filter out patients from "Chờ + đang xử lý" if the logged-in doctor is completely done with their tasks
-    if (worklistScope === 'OPEN' && currentUser?.staff?.id) {
+  const baseVisits = visits.filter(v => {
+    if (currentUser?.staff?.id) {
       const doctorId = currentUser.staff.id;
       const checkedInRoomIds = activeAttendances.map(a => a.roomId);
-      
       const isAssignedToMe = v.currentDoctorId === doctorId || (v.currentRoomId && checkedInRoomIds.includes(v.currentRoomId));
-      
-      if (!isAssignedToMe) {
-        return false;
-      }
-
-      // Check if the visit status is active for the current room type
-      const currentRoom = rooms.find(r => r.id === v.currentRoomId);
-      const isClinic = currentRoom?.type === 'CLINIC';
-      const activeStatuses = isClinic 
-        ? ['WAITING_CLINICAL_EXAM', 'IN_CLINICAL_EXAM', 'WAITING_CONCLUSION', 'IN_CONCLUSION']
-        : ['WAITING_SERVICE', 'IN_SERVICE'];
-
-      if (!activeStatuses.includes(v.status)) {
-        return false;
-      }
-
-      // If it is a non-CLINIC / CLS room, apply the doctor assignment & room pending logic:
-      if (!isClinic) {
-        const orderItems = v.order?.items || [];
-        const docCapableServiceIds = rooms
-          .filter(r => checkedInRoomIds.includes(r.id))
-          .flatMap(r => r.serviceIds || []);
-
-        // 1. Check if there are any services in this room that are still PENDING (not yet started by any doctor)
-        const hasPendingServicesInRoom = orderItems.some(item => 
-          docCapableServiceIds.includes(item.serviceId) && 
-          item.status === 'PENDING' && 
-          !item.performedById
-        );
-
-        // 2. Check if this specific doctor has any active services they accepted (IN_PROGRESS, or completed but with PENDING results)
-        const hasMyActiveServices = orderItems.some(item => 
-          item.performedById === doctorId && 
-          (item.status !== 'COMPLETED' || item.resultStatus === 'PENDING') &&
-          item.status !== 'CANCELLED'
-        );
-
-        // Hide patient only when there are no more pending services for this room AND this doctor has finished all their accepted tasks
-        if (!hasPendingServicesInRoom && !hasMyActiveServices) {
-          return false;
-        }
-      }
+      if (!isAssignedToMe) return false;
     }
-
+    
     const term = searchVisitText.toLowerCase();
     const patientName = v.patient?.fullName?.toLowerCase() || '';
     const visitCode = v.visitCode?.toLowerCase() || '';
     const phone = v.patient?.phone || '';
     return patientName.includes(term) || visitCode.includes(term) || phone.includes(term);
+  });
+
+  const filteredVisits = baseVisits.filter(v => {
+    if (worklistScope !== 'ALL') {
+      return getVisitRoomStatus(v) === worklistScope;
+    }
+    return true;
   });
 
   const getRoomScopedOrderItems = () => {
@@ -934,27 +1014,27 @@ export default function OrderManagementPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '6px 8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6 }}>
                 <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐANG ĐỢI</div>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>CHỜ THỰC HIỆN</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
-                    {statsVisits.filter(v => ['WAITING_CLINICAL_EXAM', 'WAITING_SERVICE', 'WAITING_CONCLUSION'].includes(v.status)).length}
+                    {statsVisits.filter(v => getVisitRoomStatus(v) === 'WAITING').length}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐANG KHÁM</div>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐANG THỰC HIỆN</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>
-                    {statsVisits.filter(v => ['IN_CLINICAL_EXAM', 'IN_SERVICE', 'IN_CONCLUSION'].includes(v.status)).length}
+                    {statsVisits.filter(v => getVisitRoomStatus(v) === 'IN_PROGRESS').length}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #e2e8f0' }}>
-                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>CHỜ KQ</div>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>CHỜ KẾT QUẢ</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#db2777' }}>
-                    {statsVisits.filter(v => v.status === 'WAITING_RESULTS').length}
+                    {statsVisits.filter(v => getVisitRoomStatus(v) === 'WAITING_RESULTS').length}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flex: 1 }}>
-                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>ĐÃ XONG</div>
+                  <div style={{ fontSize: 9, color: '#64748b', fontWeight: 600 }}>HOÀN THÀNH</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
-                    {statsVisits.filter(v => v.status === 'COMPLETED').length}
+                    {statsVisits.filter(v => getVisitRoomStatus(v) === 'DONE').length}
                   </div>
                 </div>
               </div>
@@ -967,27 +1047,27 @@ export default function OrderManagementPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, padding: '6px 8px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6 }}>
                 <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐANG ĐỢI</div>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>CHỜ THỰC HIỆN</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>
-                    {visits.filter(v => ['WAITING_CLINICAL_EXAM', 'WAITING_SERVICE', 'WAITING_CONCLUSION'].includes(v.status)).length}
+                    {baseVisits.filter(v => getVisitRoomStatus(v) === 'WAITING').length}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐANG KHÁM</div>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐANG THỰC HIỆN</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#d97706' }}>
-                    {visits.filter(v => ['IN_CLINICAL_EXAM', 'IN_SERVICE', 'IN_CONCLUSION'].includes(v.status)).length}
+                    {baseVisits.filter(v => getVisitRoomStatus(v) === 'IN_PROGRESS').length}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flex: 1, borderRight: '1px solid #bbf7d0' }}>
-                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>CHỜ KQ</div>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>CHỜ KẾT QUẢ</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#db2777' }}>
-                    {visits.filter(v => v.status === 'WAITING_RESULTS').length}
+                    {baseVisits.filter(v => getVisitRoomStatus(v) === 'WAITING_RESULTS').length}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', flex: 1 }}>
-                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>ĐÃ XONG</div>
+                  <div style={{ fontSize: 9, color: '#166534', fontWeight: 600 }}>HOÀN THÀNH</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>
-                    {visits.filter(v => v.status === 'COMPLETED').length}
+                    {baseVisits.filter(v => getVisitRoomStatus(v) === 'DONE').length}
                   </div>
                 </div>
               </div>
@@ -1047,9 +1127,9 @@ export default function OrderManagementPage() {
                     size="small"
                     style={{ width: '100%' }}
                     options={[
-                      { value: 'OPEN', label: 'Chờ + đang xử lý' },
-                      { value: 'ACCEPTED', label: 'Đã/đang nhận' },
-                      { value: 'WAITING_RESULTS', label: 'Chờ trả kết quả' },
+                      { value: 'WAITING', label: 'Chờ thực hiện' },
+                      { value: 'IN_PROGRESS', label: 'Đang thực hiện' },
+                      { value: 'WAITING_RESULTS', label: 'Chờ kết quả' },
                       { value: 'DONE', label: 'Hoàn thành' },
                       { value: 'ALL', label: 'Tất cả trạng thái' },
                     ]}
@@ -1109,7 +1189,7 @@ export default function OrderManagementPage() {
                           <div>Lý do: {v.reason || 'Khám tổng quát'}</div>
                         </div>
                         <div style={{ marginLeft: 4 }}>
-                          {getVisitStatusTag(v.status)}
+                          {getRoomScopedStatus(v)}
                         </div>
                       </div>
                     </div>
@@ -1179,6 +1259,16 @@ export default function OrderManagementPage() {
                           Hoan thanh
                         </Button>
                       </Tooltip>
+                    )}
+                    {selectedVisit && rooms.find(r => r.id === selectedVisit.currentRoomId)?.type !== 'CLINIC' && (
+                      <Button
+                        type="primary"
+                        icon={<CheckCircleOutlined />}
+                        onClick={handleCompleteRoomServices}
+                        style={{ width: '100%', backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                      >
+                        Hoàn tất dịch vụ phòng
+                      </Button>
                     )}
                     <Button
                       type="default"
