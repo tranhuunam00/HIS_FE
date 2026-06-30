@@ -24,7 +24,6 @@ import dayjs from 'dayjs';
 import { scheduleService } from '../../../services/scheduleService';
 import { orgService } from '../../../services/orgService';
 import { staffService } from '../../../services/staffService';
-import { departmentService } from '../../../services/departmentService';
 import ShiftFormModal from '../components/ShiftFormModal';
 import ScheduleUpdateModal from '../components/ScheduleUpdateModal';
 import ScheduleOverrideModal from '../components/ScheduleOverrideModal';
@@ -42,12 +41,10 @@ export default function ScheduleManagementPage() {
 
   // Filter states
   const [selectedBranchId, setSelectedBranchId] = useState(undefined);
-  const [selectedDeptId, setSelectedDeptId] = useState('ALL');
   const [selectedWeek, setSelectedWeek] = useState(dayjs()); // default to current week
 
   // Metadata
   const [branches, setBranches] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [shifts, setShifts] = useState([]);
 
   // Data states
@@ -76,7 +73,6 @@ export default function ScheduleManagementPage() {
       const storedBranch = localStorage.getItem('activeBranchId');
       if (storedBranch) {
         setSelectedBranchId(storedBranch);
-        fetchDepartments(storedBranch);
       }
     };
 
@@ -94,7 +90,6 @@ export default function ScheduleManagementPage() {
         const storedBranch = localStorage.getItem('activeBranchId');
         const defaultBranch = branchList.some(b => b.id === storedBranch) ? storedBranch : branchList[0].id;
         setSelectedBranchId(defaultBranch);
-        fetchDepartments(defaultBranch);
       }
       const shiftList = await scheduleService.getShifts();
       setShifts(shiftList);
@@ -104,20 +99,8 @@ export default function ScheduleManagementPage() {
     }
   };
 
-  const fetchDepartments = async (branchId) => {
-    try {
-      const list = await departmentService.getDepartments(branchId);
-      setDepartments(list);
-      setSelectedDeptId('ALL');
-    } catch (err) {
-      console.error(err);
-      message.error('Không thể tải bộ phận chi nhánh');
-    }
-  };
-
   const handleBranchChange = (value) => {
     setSelectedBranchId(value);
-    fetchDepartments(value);
   };
 
   // Main schedule query execution
@@ -127,11 +110,8 @@ export default function ScheduleManagementPage() {
     try {
       setLoading(true);
 
-      // 1. Get staff list matching the branch & department filters
+      // 1. Get staff list matching the branch filter
       const staffParams = { branchId: selectedBranchId };
-      if (selectedDeptId !== 'ALL') {
-        staffParams.departmentId = selectedDeptId;
-      }
       const staffData = await staffService.getStaffList(staffParams);
       setStaffList(staffData);
 
@@ -167,7 +147,7 @@ export default function ScheduleManagementPage() {
     if (activeTab === 'schedules') {
       fetchSchedules();
     }
-  }, [activeTab, selectedBranchId, selectedDeptId, selectedWeek]);
+  }, [activeTab, selectedBranchId, selectedWeek]);
 
   // Shifts Tab functions
   const fetchShiftsOnly = async () => {
@@ -433,21 +413,6 @@ export default function ScheduleManagementPage() {
                 {branches.map((b) => (
                   <Option key={b.id} value={b.id}>
                     {b.name}
-                  </Option>
-                ))}
-              </Select>
-
-              <span style={{ fontSize: 12, fontWeight: 600, marginLeft: 8 }}>Bộ phận:</span>
-              <Select
-                size="small"
-                style={{ width: 140 }}
-                value={selectedDeptId}
-                onChange={setSelectedDeptId}
-              >
-                <Option value="ALL">Tất cả bộ phận</Option>
-                {departments.map((d) => (
-                  <Option key={d.id} value={d.id}>
-                    {d.name}
                   </Option>
                 ))}
               </Select>
