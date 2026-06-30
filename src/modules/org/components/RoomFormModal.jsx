@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, Input, Select, InputNumber, Row, Col, message } from 'antd';
+import { Modal, Form, Input, Select, Row, Col, message } from 'antd';
 import { roomService } from '../../../services/roomService';
 
 const { Option } = Select;
@@ -19,7 +19,6 @@ export default function RoomFormModal({ visible, room, branchId, specialties, se
           type: room.type,
           specialtyId: room.specialtyId || undefined,
           floor: room.floor || '',
-          capacity: room.capacity || 1,
           serviceIds: room.serviceIds || [],
         });
       } else {
@@ -27,7 +26,6 @@ export default function RoomFormModal({ visible, room, branchId, specialties, se
         form.setFieldsValue({
           branchId: branchId,
           type: 'CLINIC',
-          capacity: 2,
         });
       }
     }
@@ -37,13 +35,12 @@ export default function RoomFormModal({ visible, room, branchId, specialties, se
     try {
       const values = await form.validateFields();
       setSubmitting(true);
-
+  
       const payload = {
         name: values.name,
         type: values.type,
         specialtyId: values.specialtyId || null,
         floor: values.floor || null,
-        capacity: values.capacity,
         serviceIds: values.serviceIds || [],
       };
 
@@ -159,21 +156,12 @@ export default function RoomFormModal({ visible, room, branchId, specialties, se
               </Select>
             </Form.Item>
           </Col>
-          <Col span={6}>
+          <Col span={12}>
             <Form.Item
               label="Vị trí (Tầng)"
               name="floor"
             >
               <Input placeholder="Ví dụ: Tầng 1" />
-            </Form.Item>
-          </Col>
-          <Col span={6}>
-            <Form.Item
-              label="Sức chứa (Ghế/Giường)"
-              name="capacity"
-              rules={[{ required: true, message: 'Nhập sức chứa' }]}
-            >
-              <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
           </Col>
         </Row>

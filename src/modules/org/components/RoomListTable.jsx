@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Tag, Space, Switch, Card, Select, Input, Tooltip, Spin, Row, Col, message } from 'antd';
-import { PlusOutlined, EditOutlined, SearchOutlined, ClusterOutlined, UsergroupAddOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, SearchOutlined, UsergroupAddOutlined } from '@ant-design/icons';
 import { roomService } from '../../../services/roomService';
 import { orgService } from '../../../services/orgService';
 import { medicalService } from '../../../services/medicalService';
-import { resourceService } from '../../../services/resourceService';
 import RoomFormModal from './RoomFormModal';
-import RoomResourcesModal from './RoomResourcesModal';
 import RoomStaffAssignmentModal from './RoomStaffAssignmentModal';
 
 const { Option } = Select;
@@ -30,9 +28,6 @@ export default function RoomListTable() {
   const [searchText, setSearchText] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState(null);
-  
-  const [resourcesModalVisible, setResourcesModalVisible] = useState(false);
-  const [selectedRoomForResources, setSelectedRoomForResources] = useState(null);
 
   const [staffAssignmentModalVisible, setStaffAssignmentModalVisible] = useState(false);
   const [selectedRoomForStaff, setSelectedRoomForStaff] = useState(null);
@@ -133,17 +128,6 @@ export default function RoomListTable() {
     }
   };
 
-  const handleToggleOccupancy = async (resourceId, newOccupancy) => {
-    try {
-      await resourceService.toggleResourceOccupancy(resourceId, newOccupancy);
-      message.success('Đã cập nhật trạng thái giường/ghế');
-      fetchRooms(selectedBranchId);
-    } catch (err) {
-      console.error(err);
-      message.error('Cập nhật trạng thái giường/ghế thất bại');
-    }
-  };
-
   const handleEdit = (room) => {
     setSelectedRoom(room);
     setModalVisible(true);
@@ -152,11 +136,6 @@ export default function RoomListTable() {
   const handleAdd = () => {
     setSelectedRoom(null);
     setModalVisible(true);
-  };
-
-  const handleOpenResources = (room) => {
-    setSelectedRoomForResources(room);
-    setResourcesModalVisible(true);
   };
 
   const handleOpenStaffAssignment = (room) => {
@@ -175,14 +154,14 @@ export default function RoomListTable() {
       title: 'Mã phòng',
       dataIndex: 'code',
       key: 'code',
-      width: '12%',
+      width: '15%',
       render: (text) => <Tag color="geekblue">{text}</Tag>,
     },
     {
       title: 'Tên phòng khám / buồng bệnh',
       dataIndex: 'name',
       key: 'name',
-      width: '25%',
+      width: '30%',
       render: (text) => <span style={{ fontWeight: 600 }}>{text}</span>,
     },
     {
@@ -199,21 +178,8 @@ export default function RoomListTable() {
       title: 'Chuyên khoa phụ trách',
       dataIndex: 'specialtyId',
       key: 'specialtyId',
-      width: '15%',
+      width: '20%',
       render: (id) => getSpecialtyName(id) || <span style={{ color: '#bfbfbf' }}>Phòng dùng chung</span>,
-    },
-    {
-      title: 'Thiết bị & Ghế & Giường',
-      key: 'resources',
-      width: '15%',
-      render: (_, record) => {
-        const count = (record.resources || []).length;
-        return count > 0 ? (
-          <Tag color="cyan">{count} tài nguyên</Tag>
-        ) : (
-          <span style={{ color: '#bfbfbf' }}>Trống</span>
-        );
-      },
     },
     {
       title: 'Vị trí',
@@ -223,17 +189,10 @@ export default function RoomListTable() {
       render: (text) => text || <span style={{ color: '#bfbfbf' }}>-</span>,
     },
     {
-      title: 'Sức chứa (Lượt)',
-      dataIndex: 'capacity',
-      key: 'capacity',
-      width: '10%',
-      render: (val) => `${val} ghế/giường`,
-    },
-    {
       title: 'Hoạt động',
       dataIndex: 'isActive',
       key: 'isActive',
-      width: '8%',
+      width: '10%',
       render: (isActive, record) => (
         <Switch
           size="small"
@@ -243,9 +202,8 @@ export default function RoomListTable() {
       ),
     },
     {
-      title: 'Thao tác',
-      key: 'serviceIds',
       title: 'Dịch vụ',
+      key: 'serviceIds',
       width: '10%',
       render: (_, record) => {
         const count = (record.serviceIds || []).length;
@@ -264,15 +222,6 @@ export default function RoomListTable() {
               icon={<EditOutlined />}
               onClick={() => handleEdit(record)}
               size="small"
-            />
-          </Tooltip>
-          <Tooltip title="Thiết bị / Tài nguyên">
-            <Button
-              type="text"
-              icon={<ClusterOutlined />}
-              onClick={() => handleOpenResources(record)}
-              size="small"
-              style={{ color: '#13c2c2' }}
             />
           </Tooltip>
           <Tooltip title="Phân công bác sĩ">
@@ -380,9 +329,6 @@ export default function RoomListTable() {
                           <Tooltip title="Sửa phòng" key="edit">
                             <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(room)} />
                           </Tooltip>,
-                          <Tooltip title="Thiết bị / Tài nguyên" key="resources">
-                            <Button type="text" size="small" icon={<ClusterOutlined />} onClick={() => handleOpenResources(room)} style={{ color: '#13c2c2' }} />
-                          </Tooltip>,
                           <Tooltip title="Phân công bác sĩ" key="staff">
                             <Button type="text" size="small" icon={<UsergroupAddOutlined />} onClick={() => handleOpenStaffAssignment(room)} style={{ color: '#722ed1' }} />
                           </Tooltip>
@@ -393,39 +339,26 @@ export default function RoomListTable() {
                         <div style={{ fontSize: '11px', color: '#8c8c8c', marginBottom: '4px' }}>
                           Mã: <Tag color="geekblue" style={{ fontSize: '10px', margin: 0, height: '16px', lineHeight: '14px' }}>{room.code}</Tag>
                         </div>
-                        <div style={{ fontSize: '11px', color: '#8c8c8c', marginBottom: '8px' }}>
-                          Khoa: <span style={{ color: '#595959', fontWeight: 500 }}>{getSpecialtyName(room.specialtyId) || 'Dùng chung'}</span>
-                        </div>
-                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#262626', marginBottom: '4px' }}>
-                          Sơ đồ Giường / Ghế:
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', minHeight: '32px' }}>
-                          {(!room.resources || room.resources.length === 0) ? (
-                            <span style={{ color: '#bfbfbf', fontSize: '11px' }}>Chưa cấu hình tài nguyên</span>
+                        {room.specialtyId && (
+                          <div style={{ fontSize: '11px', color: '#8c8c8c', marginBottom: '4px' }}>
+                            Chuyên khoa: <span style={{ color: '#262626', fontWeight: 500 }}>{getSpecialtyName(room.specialtyId)}</span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: '11px', color: '#8c8c8c', marginBottom: '4px' }}>
+                          Dịch vụ: {room.serviceIds && room.serviceIds.length > 0 ? (
+                            <Tooltip title={
+                              <div style={{ fontSize: '11px' }}>
+                                {room.serviceIds.map(sid => services.find(x => x.id === sid)?.name).filter(Boolean).map((sname, idx) => (
+                                  <div key={idx}>• {sname}</div>
+                                ))}
+                              </div>
+                            }>
+                              <Tag color="blue" style={{ fontSize: '10px', cursor: 'pointer', margin: 0 }}>
+                                {room.serviceIds.length} dịch vụ
+                              </Tag>
+                            </Tooltip>
                           ) : (
-                            room.resources.map((res) => {
-                              const isOccupied = res.isOccupied;
-                              const isActive = res.isActive;
-                              const tooltipText = `${res.name} (${res.code}) - Trạng thái: ${isOccupied ? 'ĐANG BẬN' : 'TRỐNG'}. Click để đổi trạng thái.`;
-                              
-                              return (
-                                <Tooltip key={res.id} title={tooltipText}>
-                                  <Tag
-                                    color={isOccupied ? 'error' : 'success'}
-                                    style={{
-                                      cursor: 'pointer',
-                                      margin: 0,
-                                      fontSize: '11px',
-                                      userSelect: 'none',
-                                      opacity: isActive ? 1 : 0.4
-                                    }}
-                                    onClick={() => handleToggleOccupancy(res.id, !isOccupied)}
-                                  >
-                                    {res.code}
-                                  </Tag>
-                                </Tooltip>
-                              );
-                            })
+                            <span style={{ color: '#bfbfbf' }}>Chưa cấu hình</span>
                           )}
                         </div>
                       </Card>
@@ -445,12 +378,6 @@ export default function RoomListTable() {
         services={services}
         branches={branches}
         onClose={() => setModalVisible(false)}
-        onRefresh={() => fetchRooms(selectedBranchId)}
-      />
-      <RoomResourcesModal
-        visible={resourcesModalVisible}
-        room={selectedRoomForResources}
-        onClose={() => setResourcesModalVisible(false)}
         onRefresh={() => fetchRooms(selectedBranchId)}
       />
       <RoomStaffAssignmentModal
