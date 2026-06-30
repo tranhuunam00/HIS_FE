@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Form, Input, Button, Card, Row, Col, Select, InputNumber, Divider, message, Spin } from 'antd';
-import { SaveOutlined, GlobalOutlined, InfoCircleOutlined, SettingOutlined } from '@ant-design/icons';
+import { Form, Input, Button, Card, Row, Col, message, Spin } from 'antd';
+import { SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { orgService } from '../../../services/orgService';
-
-const { Option } = Select;
 
 export default function OrgSettingsForm() {
   const [form] = Form.useForm();
@@ -54,7 +52,7 @@ export default function OrgSettingsForm() {
       layout="vertical"
       onFinish={onFinish}
       size="small"
-      style={{ maxWidth: 1000, margin: '0 auto' }}
+      style={{ maxWidth: 800, margin: '0 auto' }}
     >
       <Row gutter={[12, 12]}>
         {/* Basic & Legal Info */}
@@ -121,117 +119,6 @@ export default function OrgSettingsForm() {
                 </Form.Item>
               </Col>
             </Row>
-          </Card>
-        </Col>
-
-        {/* Localization & Formatting */}
-        <Col span={12}>
-          <Card
-            title={<span><GlobalOutlined /> Địa phương hóa & Định dạng</span>}
-            size="small"
-            styles={{ body: { padding: '12px' } }}
-            style={{ height: '100%' }}
-          >
-            <Row gutter={12}>
-              <Col span={12}>
-                <Form.Item label="Ngôn ngữ chính" name="language">
-                  <Select>
-                    <Option value="vi">Tiếng Việt (vi)</Option>
-                    <Option value="en">English (en)</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="Múi giờ" name="timezone">
-                  <Select>
-                    <Option value="Asia/Ho_Chi_Minh">Việt Nam (GMT+7)</Option>
-                    <Option value="UTC">Giờ Quốc Tế (UTC)</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Row gutter={12}>
-              <Col span={12}>
-                <Form.Item label="Quốc gia" name="country">
-                  <Input readOnly disabled defaultValue="VN" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="Tiền tệ mặc định" name="defaultCurrency">
-                  <Select>
-                    <Option value="VND">Việt Nam Đồng (đ)</Option>
-                    <Option value="USD">Đô la Mỹ ($)</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Row gutter={12}>
-              <Col span={12}>
-                <Form.Item label="Định dạng ngày" name="dateFormat">
-                  <Select>
-                    <Option value="YYYY-MM-DD">YYYY-MM-DD (2026-12-31)</Option>
-                    <Option value="DD/MM/YYYY">DD/MM/YYYY (31/12/2026)</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="Định dạng giờ" name="timeFormat">
-                  <Select>
-                    <Option value="HH:mm:ss">24h (HH:mm:ss)</Option>
-                    <Option value="hh:mm a">12h (hh:mm am/pm)</Option>
-                  </Select>
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <Row gutter={12}>
-              <Col span={12}>
-                <Form.Item label="Thời gian OTP (giây)" name="otpExpirationTime">
-                  <InputNumber style={{ width: '100%' }} min={60} />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item label="Giới hạn hủy lịch (giờ)" name="appointmentCancellationLimit">
-                  <InputNumber style={{ width: '100%' }} min={0} />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-        </Col>
-
-        {/* Identity Formats */}
-        <Col span={12}>
-          <Card
-            title={<span><SettingOutlined /> Định dạng mã định danh</span>}
-            size="small"
-            styles={{ body: { padding: '12px' } }}
-            style={{ height: '100%' }}
-          >
-            <Form.Item
-              label="Mã hồ sơ bệnh án (MRN Format)"
-              name="mrnFormat"
-              help="Các từ khóa khả dụng: {YY} (năm), {MM} (tháng), {DD} (ngày), {SEQ} (số tự tăng)"
-            >
-              <Input placeholder="Ví dụ: MRN-{YY}{MM}{DD}-{SEQ}" />
-            </Form.Item>
-
-            <Form.Item
-              label="Mã khách hàng (Patient Format)"
-              name="patientCodeFormat"
-              help="Các từ khóa khả dụng: {YY} (năm), {MM} (tháng), {SEQ} (số tự tăng)"
-            >
-              <Input placeholder="Ví dụ: PT-{YY}{MM}-{SEQ}" />
-            </Form.Item>
-
-            <Form.Item
-              label="Mã lượt khám (Visit Format)"
-              name="visitCodeFormat"
-              help="Các từ khóa khả dụng: {YY} (năm), {MM} (tháng), {DD} (ngày), {SEQ} (số tự tăng)"
-            >
-              <Input placeholder="Ví dụ: VS-{YY}{MM}{DD}-{SEQ}" />
-            </Form.Item>
           </Card>
         </Col>
 
