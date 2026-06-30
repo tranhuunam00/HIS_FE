@@ -9,7 +9,6 @@ import {
 } from '@ant-design/icons';
 import { staffService } from '../../../services/staffService';
 import { orgService } from '../../../services/orgService';
-import { departmentService } from '../../../services/departmentService';
 import StaffFormModal from './StaffFormModal';
 import StaffCertificateModal from './StaffCertificateModal';
 import StaffAssignmentModal from './StaffAssignmentModal';
@@ -35,7 +34,6 @@ export default function StaffListTable() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [departments, setDepartments] = useState([]);
 
   // Filters State
   const [selectedBranchId, setSelectedBranchId] = useState('ALL');
@@ -70,12 +68,10 @@ export default function StaffListTable() {
   const initData = async () => {
     try {
       setLoading(true);
-      const [branchList, deptList] = await Promise.all([
+      const [branchList] = await Promise.all([
         orgService.getBranches(),
-        departmentService.getDepartments(),
       ]);
       setBranches(branchList);
-      setDepartments(deptList);
 
       const activeId = localStorage.getItem('activeBranchId');
       const storedExists = branchList.some(b => b.id === activeId);
@@ -171,11 +167,6 @@ export default function StaffListTable() {
     );
   });
 
-  const getDepartmentName = (id) => {
-    if (!id) return <span style={{ color: '#bfbfbf' }}>-</span>;
-    const dept = departments.find((d) => d.id === id);
-    return dept ? dept.name : <span style={{ color: '#bfbfbf' }}>-</span>;
-  };
 
   const columns = [
     {
@@ -193,9 +184,6 @@ export default function StaffListTable() {
       render: (text, record) => (
         <div>
           <div style={{ fontWeight: 600 }}>{text} {record.nickname ? `(${record.nickname})` : ''}</div>
-          {record.isClinical && (
-            <small style={{ color: '#52c41a', fontWeight: 500 }}>Chuyên môn lâm sàng</small>
-          )}
         </div>
       ),
     },
@@ -208,13 +196,6 @@ export default function StaffListTable() {
         const tag = TITLE_TAGS[title] || { color: 'default', label: title };
         return <Tag color={tag.color}>{tag.label}</Tag>;
       },
-    },
-    {
-      title: 'Bộ phận',
-      dataIndex: 'departmentId',
-      key: 'departmentId',
-      width: '12%',
-      render: (id) => getDepartmentName(id),
     },
     {
       title: 'Giới tính',

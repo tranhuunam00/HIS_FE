@@ -66,14 +66,7 @@ export default function StaffCertificateModal({ visible, staff, onClose, onRefre
       width={550}
       size="small"
     >
-      {!staff.isClinical && (
-        <Alert
-          message="Lưu ý: Nhân viên này đang được cấu hình là không thuộc khối lâm sàng (isClinical = false)."
-          type="warning"
-          showIcon
-          style={{ marginBottom: 12, fontSize: 12 }}
-        />
-      )}
+
 
       <Form
         form={form}
