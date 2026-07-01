@@ -69,13 +69,12 @@ export default function LoginPage() {
           <Form.Item
             name="email"
             rules={[
-              { required: true, message: 'Vui lòng điền Email!' },
-              { type: 'email', message: 'Email không hợp lệ!' }
+              { required: true, message: 'Vui lòng điền Tài khoản hoặc Email!' }
             ]}
           >
             <Input 
               prefix={<UserOutlined style={{ color: '#94a3b8' }} />} 
-              placeholder="Email (admin@hisdaocare.com)" 
+              placeholder="Tài khoản hoặc Email (admin)" 
               style={{ background: '#334155', border: '1px solid #475569', color: '#f8fafc' }}
             />
           </Form.Item>

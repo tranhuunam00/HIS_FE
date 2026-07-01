@@ -34,6 +34,7 @@ import { authAdminService } from '../../../services/authAdminService';
 import { orgService } from '../../../services/orgService';
 import { staffService } from '../../../services/staffService';
 import UserFormModal from '../components/UserFormModal';
+import PatientUserFormModal from '../components/PatientUserFormModal';
 import ScopedPermissionFormModal from '../components/ScopedPermissionFormModal';
 import RolePermissionMatrixModal from '../components/RolePermissionMatrixModal';
 import { EXCLUDE_ROLES_FILTER } from '../constants';
@@ -66,6 +67,12 @@ export default function UserManagementPage() {
   const [lockVisible, setLockVisible] = useState(false);
   const [lockUser, setLockUser] = useState(null);
   const [lockForm] = Form.useForm();
+
+  const [patients, setPatients] = useState([]);
+  const [patientSearchText, setPatientSearchText] = useState('');
+  const [patientFilterStatus, setPatientFilterStatus] = useState('ALL');
+  const [patientModalVisible, setPatientModalVisible] = useState(false);
+  const [selectedPatientUser, setSelectedPatientUser] = useState(null);
 
   // Scoped Permissions states
   const [scopedPermissions, setScopedPermissions] = useState([]);
@@ -262,6 +269,36 @@ export default function UserManagementPage() {
     }
   }, [activeTab, filterRole, filterStatus, searchText]);
 
+  const fetchPatients = async () => {
+    try {
+      setLoading(true);
+      const params = {
+        roleNames: 'PATIENT',
+      };
+      if (patientFilterStatus !== 'ALL') params.status = patientFilterStatus;
+      if (patientSearchText) params.search = patientSearchText;
+
+      const data = await authAdminService.getUsers(params);
+      setPatients(data);
+    } catch (err) {
+      console.error(err);
+      message.error('Không thể tải danh sách tài khoản bệnh nhân');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'patients') {
+      fetchPatients();
+    }
+  }, [activeTab, patientFilterStatus, patientSearchText]);
+
+  const handleEditPatientUser = (user) => {
+    setSelectedPatientUser(user);
+    setPatientModalVisible(true);
+  };
+
   const handleEditUser = (user) => {
     setSelectedUser(user);
     setUserModalVisible(true);
@@ -309,7 +346,8 @@ export default function UserManagementPage() {
           try {
             await authAdminService.unlockUser(user.id);
             message.success(`Đã mở khóa tài khoản ${user.username}`);
-            fetchUsers();
+            if (activeTab === 'users') fetchUsers();
+            else if (activeTab === 'patients') fetchPatients();
           } catch (err) {
             console.error(err);
             message.error(err.response?.data?.message || 'Mở khóa thất bại');
@@ -325,7 +363,8 @@ export default function UserManagementPage() {
       await authAdminService.lockUser(lockUser.id, values.reason);
       message.success(`Đã khóa tài khoản ${lockUser.username}`);
       setLockVisible(false);
-      fetchUsers();
+      if (activeTab === 'users') fetchUsers();
+      else if (activeTab === 'patients') fetchPatients();
     } catch (err) {
       if (err.name === 'ValidationError') return;
       console.error(err);
@@ -437,13 +476,59 @@ export default function UserManagementPage() {
     },
   ];
 
+  const patientColumns = [
+    {
+      title: 'Tên đăng nhập (Username)',
+      dataIndex: 'username',
+      key: 'username',
+      width: '30%',
+      render: (text) => <span style={{ fontWeight: 600 }}>{text}</span>,
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      width: '40%',
+      render: (text) => text || '-',
+    },
+    {
+      title: 'Hoạt động',
+      dataIndex: 'lockedAt',
+      key: 'status',
+      width: '15%',
+      render: (lockedAt, record) => (
+        <Switch
+          size="small"
+          checked={!lockedAt}
+          onChange={(checked) => handleToggleUserStatus(checked, record)}
+        />
+      ),
+    },
+    {
+      title: 'Thao tác',
+      key: 'action',
+      width: '15%',
+      render: (_, record) => (
+        <Space size="middle">
+          <Button
+            type="text"
+            icon={<EditOutlined />}
+            size="small"
+            onClick={() => handleEditPatientUser(record)}
+            title="Sửa thông tin"
+          />
+        </Space>
+      ),
+    },
+  ];
+
   const tabItems = [
     {
       key: 'users',
       label: (
         <span>
           <UserOutlined />
-          Danh sách tài khoản
+          Tài khoản nhân viên
         </span>
       ),
       children: (
@@ -501,6 +586,53 @@ export default function UserManagementPage() {
           <Table
             dataSource={users}
             columns={userColumns}
+            rowKey="id"
+            size="small"
+            loading={loading}
+            pagination={{ pageSize: 10, size: 'small' }}
+          />
+        </Card>
+      ),
+    },
+    {
+      key: 'patients',
+      label: (
+        <span>
+          <UserOutlined style={{ color: '#52c41a' }} />
+          Tài khoản bệnh nhân
+        </span>
+      ),
+      children: (
+        <Card
+          size="small"
+          title={
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <Input
+                placeholder="Tìm theo username, email..."
+                value={patientSearchText}
+                onChange={(e) => setPatientSearchText(e.target.value)}
+                prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                style={{ width: 220 }}
+                size="small"
+              />
+              <span style={{ fontSize: 12, marginLeft: 8 }}>Trạng thái:</span>
+              <Select
+                size="small"
+                style={{ width: 140 }}
+                value={patientFilterStatus}
+                onChange={setPatientFilterStatus}
+              >
+                <Option value="ALL">Tất cả trạng thái</Option>
+                <Option value="ACTIVE">Đang hoạt động</Option>
+                <Option value="LOCKED">Đã khóa</Option>
+              </Select>
+            </div>
+          }
+          styles={{ body: { padding: '0px' } }}
+        >
+          <Table
+            dataSource={patients}
+            columns={patientColumns}
             rowKey="id"
             size="small"
             loading={loading}
@@ -635,6 +767,14 @@ export default function UserManagementPage() {
         branches={branches}
         onClose={() => setUserModalVisible(false)}
         onRefresh={fetchUsers}
+      />
+
+      {/* Patient User Form Modal */}
+      <PatientUserFormModal
+        visible={patientModalVisible}
+        user={selectedPatientUser}
+        onClose={() => setPatientModalVisible(false)}
+        onRefresh={fetchPatients}
       />
 
       {/* Reset Password Modal */}

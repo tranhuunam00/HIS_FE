@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Card, Input, Space, Tag, Modal, Form, Select, DatePicker, Typography, message, Tooltip, Row, Col, Divider } from 'antd';
-import { PlusOutlined, SearchOutlined, ScanOutlined, EditOutlined, MedicineBoxOutlined } from '@ant-design/icons';
+import { Table, Button, Card, Input, Space, Tag, Modal, Form, Select, DatePicker, Typography, message, Tooltip, Row, Col, Divider, Tabs } from 'antd';
+import { PlusOutlined, SearchOutlined, ScanOutlined, EditOutlined, MedicineBoxOutlined, KeyOutlined } from '@ant-design/icons';
 import { patientService } from '../../../services/patientService';
 import { authAdminService } from '../../../services/authAdminService';
 import CheckInModal from '../components/CheckInModal';
@@ -25,6 +25,33 @@ export default function PatientManagementPage() {
 
   const [currentUser, setCurrentUser] = useState(null);
   const activeBranchId = localStorage.getItem('activeBranchId');
+
+  const [resetPwdVisible, setResetPwdVisible] = useState(false);
+  const [resetPatient, setResetPatient] = useState(null);
+  const [resetForm] = Form.useForm();
+  const [resettingPwd, setResettingPwd] = useState(false);
+
+  const handleOpenResetPwd = (patient) => {
+    setResetPatient(patient);
+    resetForm.resetFields();
+    setResetPwdVisible(true);
+  };
+
+  const handleResetPasswordSubmit = async () => {
+    try {
+      setResettingPwd(true);
+      const values = await resetForm.validateFields();
+      await patientService.resetPassword(resetPatient.id, values.password);
+      message.success(`Đã cấp/reset mật khẩu thành công cho bệnh nhân ${resetPatient.fullName}!`);
+      setResetPwdVisible(false);
+    } catch (err) {
+      if (err.name === 'ValidationError') return;
+      console.error(err);
+      message.error(err.response?.data?.message || 'Đặt mật khẩu thất bại');
+    } finally {
+      setResettingPwd(false);
+    }
+  };
 
   useEffect(() => {
     fetchPatients();
@@ -120,10 +147,13 @@ export default function PatientManagementPage() {
     try {
       setSaving(true);
       const values = await form.validateFields();
-      const payload = {
-        ...values,
-        dob: values.dob.format('YYYY-MM-DD'),
-      };
+      const payload = {};
+      Object.keys(values).forEach((key) => {
+        payload[key] = values[key] === '' ? null : values[key];
+      });
+      if (values.dob) {
+        payload.dob = values.dob.format('YYYY-MM-DD');
+      }
 
       if (selectedPatient) {
         await patientService.updatePatient(selectedPatient.id, payload);
@@ -132,6 +162,7 @@ export default function PatientManagementPage() {
         await patientService.createPatient(payload);
         message.success('Tạo hồ sơ bệnh nhân mới thành công!');
       }
+
       setFormVisible(false);
       fetchPatients();
     } catch (err) {
@@ -202,6 +233,16 @@ export default function PatientManagementPage() {
                 type="text"
                 icon={<EditOutlined />}
                 onClick={() => handleEdit(record)}
+                size="small"
+              />
+            </Tooltip>
+          )}
+          {hasBranchPermission('canUpdatePatient') && (
+            <Tooltip title="Cấp/Reset mật khẩu đăng nhập">
+              <Button
+                type="text"
+                icon={<KeyOutlined />}
+                onClick={() => handleOpenResetPwd(record)}
                 size="small"
               />
             </Tooltip>
@@ -313,96 +354,154 @@ export default function PatientManagementPage() {
         )}
 
         <Form form={form} layout="vertical" size="small">
-          <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item
-                name="cccd"
-                label="Số CCCD"
-                rules={[{ required: true, message: 'Vui lòng nhập số CCCD!' }]}
-              >
-                <Input placeholder="CCCD 12 số" />
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item
-                name="fullName"
-                label="Họ và tên bệnh nhân"
-                rules={[{ required: true, message: 'Vui lòng nhập tên bệnh nhân' }]}
-              >
-                <Input placeholder="Họ và tên viết hoa có dấu" style={{ textTransform: 'uppercase' }} />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Tabs
+            defaultActiveKey="personal"
+            size="small"
+            items={[
+              {
+                key: 'personal',
+                label: 'Thông tin cá nhân',
+                children: (
+                  <div style={{ paddingTop: 8 }}>
+                    <Row gutter={12}>
+                      <Col span={8}>
+                        <Form.Item
+                          name="cccd"
+                          label="Số CCCD"
+                          rules={[{ required: true, message: 'Vui lòng nhập số CCCD!' }]}
+                        >
+                          <Input placeholder="CCCD 12 số" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={16}>
+                        <Form.Item
+                          name="fullName"
+                          label="Họ và tên bệnh nhân"
+                          rules={[{ required: true, message: 'Vui lòng nhập tên bệnh nhân' }]}
+                        >
+                          <Input placeholder="Họ và tên viết hoa có dấu" style={{ textTransform: 'uppercase' }} />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-          <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item
-                name="dob"
-                label="Ngày sinh"
-                rules={[{ required: true, message: 'Vui lòng chọn ngày sinh' }]}
-              >
-                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Chọn ngày" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="gender"
-                label="Giới tính"
-                rules={[{ required: true, message: 'Vui lòng chọn giới tính' }]}
-              >
-                <Select>
-                  <Option value="MALE">Nam</Option>
-                  <Option value="FEMALE">Nữ</Option>
-                  <Option value="OTHER">Khác</Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                name="phone"
-                label="Số điện thoại liên hệ"
-                rules={[
-                  { required: true, message: 'Vui lòng nhập số điện thoại' },
-                  { pattern: /^[0-9]{10}$/, message: 'Số điện thoại gồm 10 chữ số' },
-                ]}
-              >
-                <Input placeholder="Số điện thoại di động" />
-              </Form.Item>
-            </Col>
-          </Row>
+                    <Row gutter={12}>
+                      <Col span={8}>
+                        <Form.Item
+                          name="dob"
+                          label="Ngày sinh"
+                          rules={[{ required: true, message: 'Vui lòng chọn ngày sinh' }]}
+                        >
+                          <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Chọn ngày" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item
+                          name="gender"
+                          label="Giới tính"
+                          rules={[{ required: true, message: 'Vui lòng chọn giới tính' }]}
+                        >
+                          <Select>
+                            <Option value="MALE">Nam</Option>
+                            <Option value="FEMALE">Nữ</Option>
+                            <Option value="OTHER">Khác</Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item
+                          name="phone"
+                          label="Số điện thoại liên hệ"
+                          rules={[
+                            { required: true, message: 'Vui lòng nhập số điện thoại' },
+                            { pattern: /^[0-9]{10}$/, message: 'Số điện thoại gồm 10 chữ số' },
+                          ]}
+                        >
+                          <Input placeholder="Số điện thoại di động" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-          <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item name="email" label="Email">
-                <Input type="email" placeholder="example@gmail.com" />
-              </Form.Item>
-            </Col>
-            <Col span={16}>
-              <Form.Item name="address" label="Địa chỉ liên hệ">
-                <Input placeholder="Số nhà, đường/phố, quận/huyện..." />
-              </Form.Item>
-            </Col>
-          </Row>
+                    <Row gutter={12}>
+                      <Col span={8}>
+                        <Form.Item name="email" label="Email">
+                          <Input type="email" placeholder="example@gmail.com" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={16}>
+                        <Form.Item name="address" label="Địa chỉ liên hệ">
+                          <Input placeholder="Số nhà, đường/phố, quận/huyện..." />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
-          <Divider style={{ margin: '8px 0' }}><small style={{ color: '#8c8c8c' }}>Người Giám Hộ (Nếu có)</small></Divider>
+                    <Divider style={{ margin: '12px 0 8px 0' }}><small style={{ color: '#8c8c8c' }}>Người Giám Hộ (Nếu có)</small></Divider>
 
-          <Row gutter={12}>
-            <Col span={8}>
-              <Form.Item name="guardianName" label="Họ tên người giám hộ">
-                <Input placeholder="Bố, mẹ hoặc người bảo hộ" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="guardianPhone" label="Số điện thoại">
-                <Input placeholder="Số điện thoại di động" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="guardianRelation" label="Quan hệ">
-                <Input placeholder="Ví dụ: Bố, Mẹ, Anh..." />
-              </Form.Item>
-            </Col>
-          </Row>
+                    <Row gutter={12}>
+                      <Col span={8}>
+                        <Form.Item name="guardianName" label="Họ tên người giám hộ">
+                          <Input placeholder="Bố, mẹ hoặc người bảo hộ" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item name="guardianPhone" label="Số điện thoại">
+                          <Input placeholder="Số điện thoại di động" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item name="guardianRelation" label="Quan hệ">
+                          <Input placeholder="Ví dụ: Bố, Mẹ, Anh..." />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
+                )
+              },
+              {
+                key: 'login',
+                label: 'Thông tin đăng nhập',
+                children: (
+                  <div style={{ paddingTop: 8, minHeight: 150 }}>
+                    <Row gutter={12}>
+                      <Col span={8}>
+                        <Form.Item
+                          name="username"
+                          label="Tên đăng nhập (Username)"
+                          rules={[
+                            { pattern: /^[a-zA-Z0-9._-]+$/, message: 'Tên đăng nhập chỉ gồm chữ, số, dấu chấm, gạch dưới, gạch ngang' }
+                          ]}
+                        >
+                          <Input 
+                            placeholder="Nhập tên đăng nhập (Số điện thoại hoặc text)" 
+                            autoComplete="off"
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item
+                          name="email"
+                          label="Email tài khoản"
+                          rules={[
+                            { type: 'email', message: 'Email không hợp lệ!' }
+                          ]}
+                        >
+                          <Input placeholder="example@gmail.com" autoComplete="off" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={8}>
+                        <Form.Item
+                          name="password"
+                          label={selectedPatient ? "Mật khẩu (Để trống nếu không đổi)" : "Mật khẩu đăng nhập"}
+                          rules={[{ min: 6, message: 'Mật khẩu tối thiểu phải dài 6 ký tự' }]}
+                        >
+                          <Input.Password placeholder="Nhập mật khẩu cho bệnh nhân" autoComplete="new-password" />
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  </div>
+                )
+              }
+            ]}
+          />
         </Form>
       </Modal>
 
@@ -414,6 +513,40 @@ export default function PatientManagementPage() {
         patient={checkInPatient}
         branchId={activeBranchId}
       />
+
+      {/* Reset Password Modal */}
+      <Modal
+        title={
+          <div style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+            🔑 Cấp / Reset mật khẩu tài khoản bệnh nhân
+          </div>
+        }
+        open={resetPwdVisible}
+        onCancel={() => setResetPwdVisible(false)}
+        onOk={handleResetPasswordSubmit}
+        confirmLoading={resettingPwd}
+        destroyOnClose
+        width={360}
+        okText="Đặt mật khẩu"
+        cancelText="Hủy"
+        size="small"
+      >
+        <div style={{ margin: '8px 0 12px 0', color: '#595959', fontSize: '12px', lineHeight: '1.4' }}>
+          Tài khoản đăng nhập của bệnh nhân <strong>{resetPatient?.fullName}</strong> sẽ được tự động liên kết bằng <strong>Số điện thoại: {resetPatient?.phone}</strong> (Username) hoặc <strong>Email: {resetPatient?.email || 'Chưa cập nhật'}</strong>.
+        </div>
+        <Form form={resetForm} layout="vertical" size="small">
+          <Form.Item
+            label="Mật khẩu mới (Tối thiểu 6 ký tự)"
+            name="password"
+            rules={[
+              { required: true, message: 'Vui lòng nhập mật khẩu mới!' },
+              { min: 6, message: 'Mật khẩu phải dài tối thiểu 6 ký tự!' },
+            ]}
+          >
+            <Input.Password placeholder="Nhập mật khẩu" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

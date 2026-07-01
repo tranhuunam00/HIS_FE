@@ -101,6 +101,9 @@ export default function UserFormModal({
 
       if (isEdit) {
         await authAdminService.updateUser(user.id, payload);
+        if (values.password) {
+          await authAdminService.resetPassword(user.id, values.password);
+        }
         message.success('Cập nhật user thành công');
       } else {
         await authAdminService.createUser({
@@ -200,7 +203,7 @@ export default function UserFormModal({
               name="username"
               rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}
             >
-              <Input placeholder="eg .nam.th" disabled={isEdit} />
+              <Input placeholder="eg .nam.th" autoComplete="off" />
             </Form.Item>
           </Col>
           <Col span={8}>
@@ -212,25 +215,24 @@ export default function UserFormModal({
                 { type: 'email', message: 'Email không hợp lệ' },
               ]}
             >
-              <Input placeholder="eg .nam@gmail.com" />
+              <Input placeholder="eg .nam@gmail.com" autoComplete="off" />
             </Form.Item>
           </Col>
           <Col span={8}>
-            {!isEdit && (
-              <Form.Item
-                label="Mật khẩu"
-                name="password"
-                rules={[
-                  { required: true, message: 'Nhập mật khẩu khởi tạo' },
-                  { min: 6, message: 'Mật khẩu phải dài tối thiểu 6 ký tự' },
-                ]}
-              >
-                <Input.Password
-                  placeholder="Mật khẩu khởi tạo"
-                  iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
-                />
-              </Form.Item>
-            )}
+            <Form.Item
+              label={isEdit ? "Đổi mật khẩu (Để trống nếu không đổi)" : "Mật khẩu"}
+              name="password"
+              rules={[
+                { required: !isEdit, message: 'Nhập mật khẩu khởi tạo' },
+                { min: 6, message: 'Mật khẩu phải dài tối thiểu 6 ký tự' },
+              ]}
+            >
+              <Input.Password
+                placeholder={isEdit ? "Nhập mật khẩu mới" : "Mật khẩu khởi tạo"}
+                autoComplete="new-password"
+                iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+              />
+            </Form.Item>
           </Col>
         </Row>
 

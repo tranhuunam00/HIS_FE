@@ -184,7 +184,7 @@ export default function ScheduleUpdateModal({
       }
 
       const payload = {
-        staffIds: values.staffIds,
+        staffIds,
         effectiveDate: values.effectiveDate.format('YYYY-MM-DD'),
         items,
       };

@@ -21,4 +21,9 @@ export const patientService = {
     const res = await api.put(`/patients/${id}`, data);
     return res.data;
   },
+
+  resetPassword: async (id, password) => {
+    const res = await api.post(`/patients/${id}/reset-password`, { password });
+    return res.data;
+  },
 };
