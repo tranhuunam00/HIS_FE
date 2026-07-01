@@ -11,6 +11,11 @@ export const authAdminService = {
     return res.data;
   },
 
+  getUserById: async (id) => {
+    const res = await api.get(`/users/${id}`);
+    return res.data;
+  },
+
   createUser: async (data) => {
     const res = await api.post('/users', data);
     return res.data;

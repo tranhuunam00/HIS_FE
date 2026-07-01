@@ -18,13 +18,16 @@ import {
   DeleteOutlined,
   StarOutlined,
   DisconnectOutlined,
-  CompassOutlined
+  CompassOutlined,
+  KeyOutlined,
+  LockOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { staffService } from '../../../services/staffService';
 import { medicalService } from '../../../services/medicalService';
 import { roomService } from '../../../services/roomService';
 import { orgService } from '../../../services/orgService';
+import { authAdminService } from '../../../services/authAdminService';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -67,13 +70,19 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
   const [assignIsPrimary, setAssignIsPrimary] = useState(false);
   const [assignSubmitting, setAssignSubmitting] = useState(false);
 
+  // Credentials (Login) States
+  const [roles, setRoles] = useState([]);
+  const [userAccount, setUserAccount] = useState(null);
+
   const isEdit = !!staff;
 
   useEffect(() => {
     if (visible) {
       setActiveTab('profile');
       fetchMetadata();
+      fetchRoles();
       if (staff) {
+        fetchUserAccount(staff.userId);
         setAvatarUrl(staff.avatarUrl || '');
         setSignatureScanUrl(staff.certificate?.signatureScanUrl || '');
         setFullName(staff.fullName || '');
@@ -115,6 +124,7 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
         setTitle('DOCTOR');
         setPhone('');
         setEmail('');
+        setUserAccount(null);
         form.setFieldsValue({
           gender: 'MALE',
           title: 'DOCTOR',
@@ -123,6 +133,33 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
       }
     }
   }, [visible, staff, form]);
+
+  const fetchRoles = async () => {
+    try {
+      const roleData = await authAdminService.getRoles();
+      setRoles(roleData);
+    } catch (err) {
+      console.error('Không thể tải danh sách nhóm quyền:', err);
+    }
+  };
+
+  const fetchUserAccount = async (userId) => {
+    if (!userId) {
+      setUserAccount(null);
+      return;
+    }
+    try {
+      const user = await authAdminService.getUserById(userId);
+      setUserAccount(user);
+      form.setFieldsValue({
+        loginUsername: user.username || '',
+        loginRoleId: user.roleId || undefined,
+      });
+    } catch (err) {
+      console.error('Không thể tải thông tin tài khoản:', err);
+      setUserAccount(null);
+    }
+  };
 
   const fetchMetadata = async () => {
     try {
@@ -246,6 +283,11 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
         academicTitle: values.academicTitle || null,
         degree: values.degree || null,
       };
+
+      // Include credentials if provided
+      if (values.loginUsername) staffPayload.username = values.loginUsername;
+      if (values.loginPassword) staffPayload.password = values.loginPassword;
+      if (values.loginRoleId) staffPayload.roleId = values.loginRoleId;
 
       let staffId = staff?.id;
 
@@ -972,6 +1014,103 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
             </Card>
           </Col>
         </Row>
+      )
+    },
+    {
+      key: 'credentials',
+      label: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: 500 }}>
+          <KeyOutlined />
+          Thông tin đăng nhập
+        </span>
+      ),
+      children: (
+        <div style={{ marginTop: 16 }}>
+          <Card
+            bordered={false}
+            bodyStyle={{ padding: '24px' }}
+            style={{ border: '1px solid #f0f0f0', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, color: '#1890ff', fontWeight: 600, fontSize: '14px' }}>
+              <LockOutlined /> Tài khoản đăng nhập hệ thống
+            </div>
+
+            {userAccount && (
+              <div style={{ marginBottom: 16, padding: '10px 16px', background: '#e6f7ff', borderRadius: '8px', fontSize: '13px', border: '1px solid #91d5ff' }}>
+                Nhân sự này đã có tài khoản đăng nhập. Bỏ trống trường mật khẩu nếu không cần đổi.
+              </div>
+            )}
+
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <Form.Item
+                  label={<span style={{ fontWeight: 500 }}>Tên đăng nhập (Username)</span>}
+                  name="loginUsername"
+                  rules={[
+                    { min: 3, message: 'Username phải từ 3 ký tự trở lên' },
+                  ]}
+                >
+                  <Input
+                    prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+                    placeholder="Để trống nếu chưa tạo tài khoản"
+                    style={{ borderRadius: '8px' }}
+                    autoComplete="off"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  label={<span style={{ fontWeight: 500 }}>Nhóm quyền (Role)</span>}
+                  name="loginRoleId"
+                >
+                  <Select
+                    placeholder="Chọn nhóm quyền"
+                    allowClear
+                    style={{ borderRadius: '8px' }}
+                  >
+                    {roles.filter(r => r.name !== 'PATIENT').map(r => (
+                      <Option key={r.id} value={r.id}>{r.name}</Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Row gutter={[16, 16]}>
+              <Col span={12}>
+                <Form.Item
+                  label={<span style={{ fontWeight: 500 }}>{userAccount ? 'Mật khẩu mới (bỏ trống nếu giữ nguyên)' : 'Mật khẩu'}</span>}
+                  name="loginPassword"
+                  rules={[
+                    { min: 6, message: 'Mật khẩu phải từ 6 ký tự trở lên' },
+                  ]}
+                >
+                  <Input.Password
+                    prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+                    placeholder={userAccount ? 'Bỏ trống nếu giữ nguyên' : 'Nhập mật khẩu'}
+                    style={{ borderRadius: '8px' }}
+                    autoComplete="new-password"
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  label={<span style={{ fontWeight: 500 }}>Email đăng nhập</span>}
+                >
+                  <Input
+                    value={email || ''}
+                    disabled
+                    prefix={<MailOutlined style={{ color: '#bfbfbf' }} />}
+                    style={{ borderRadius: '8px', background: '#fafafa' }}
+                  />
+                  <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4 }}>
+                    Email đăng nhập được lấy từ thông tin cơ bản của nhân sự.
+                  </div>
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+        </div>
       )
     },
     {

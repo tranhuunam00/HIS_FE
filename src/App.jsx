@@ -138,12 +138,6 @@ function AdminLayout() {
       permissionField: 'canConfigureSystem',
     },
     {
-      key: '/admin/users',
-      icon: <UserOutlined />,
-      label: <Link to="/admin/users">Tài khoản & Quyền</Link>,
-      permissionField: 'canConfigureSystem',
-    },
-    {
       key: '/admin/medical',
       icon: <MedicineBoxOutlined />,
       label: <Link to="/admin/medical">Danh mục Y tế</Link>,
@@ -265,7 +259,7 @@ function AdminLayout() {
           {currentUser && (
             <Routes>
               <Route path="org" element={hasBranchPermission('canConfigureSystem') ? <OrgManagementPage /> : <Navigate to={hasBranchPermission('canCheckIn') ? '/admin/queue' : '/admin/schedules/attendance'} replace />} />
-              <Route path="users" element={hasBranchPermission('canConfigureSystem') ? <UserManagementPage /> : <Navigate to="/admin/org" replace />} />
+              <Route path="users" element={<Navigate to="/admin/org?tab=accounts" replace />} />
               <Route path="medical" element={hasBranchPermission('canConfigureCatalog') ? <MedicalCatalogPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="schedules" element={hasBranchPermission('canManageSchedules') ? <ScheduleManagementPage /> : <Navigate to="/admin/org" replace />} />
               <Route path="schedules/attendance" element={hasRole(['DOCTOR', 'NURSE', 'TECHNICIAN', 'ADMIN']) ? <DoctorAttendancePage /> : <Navigate to="/admin/org" replace />} />

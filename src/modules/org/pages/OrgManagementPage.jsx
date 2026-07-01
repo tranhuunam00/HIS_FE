@@ -1,14 +1,19 @@
 import React from 'react';
 import { Tabs, Card, Typography } from 'antd';
-import { BuildOutlined, SettingOutlined, HomeOutlined, TeamOutlined, BankOutlined } from '@ant-design/icons';
+import { BuildOutlined, SettingOutlined, HomeOutlined, TeamOutlined, BankOutlined, KeyOutlined } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import OrgSettingsForm from '../components/OrgSettingsForm';
 import BranchListTable from '../components/BranchListTable';
 import RoomListTable from '../components/RoomListTable';
 import StaffListTable from '../components/StaffListTable';
+import UserManagementPage from '../../auth/pages/UserManagementPage';
 
 const { Title, Paragraph } = Typography;
 
 export default function OrgManagementPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'org-settings';
+
   const tabItems = [
     {
       key: 'org-settings',
@@ -50,6 +55,17 @@ export default function OrgManagementPage() {
       ),
       children: <StaffListTable />,
     },
+    {
+      key: 'accounts',
+      label: (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 500 }}>
+          <KeyOutlined style={{ fontSize: 16 }} />
+          Ma trận phân quyền
+        </span>
+      ),
+      children: <UserManagementPage isSubComponent permissionsOnly />,
+    },
+
   ];
 
   return (
@@ -100,7 +116,8 @@ export default function OrgManagementPage() {
         }}
       >
         <Tabs 
-          defaultActiveKey="org-settings" 
+          activeKey={activeTab}
+          onChange={(key) => setSearchParams({ tab: key })}
           items={tabItems} 
           size="middle" 
           tabBarStyle={{ marginBottom: '20px' }}
