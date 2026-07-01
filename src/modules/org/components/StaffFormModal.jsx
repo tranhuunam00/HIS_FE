@@ -871,7 +871,6 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
                       label={<span style={{ fontWeight: 500 }}>Email</span>}
                       name="email"
                       rules={[
-                        { required: true, message: 'Vui lòng điền Email' },
                         { type: 'email', message: 'Email không hợp lệ' }
                       ]}
                     >
@@ -1077,7 +1076,7 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
             </Row>
 
             <Row gutter={[16, 16]}>
-              <Col span={12}>
+              <Col span={24}>
                 <Form.Item
                   label={<span style={{ fontWeight: 500 }}>{userAccount ? 'Mật khẩu mới (bỏ trống nếu giữ nguyên)' : 'Mật khẩu'}</span>}
                   name="loginPassword"
@@ -1091,21 +1090,6 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
                     style={{ borderRadius: '8px' }}
                     autoComplete="new-password"
                   />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  label={<span style={{ fontWeight: 500 }}>Email đăng nhập</span>}
-                >
-                  <Input
-                    value={email || ''}
-                    disabled
-                    prefix={<MailOutlined style={{ color: '#bfbfbf' }} />}
-                    style={{ borderRadius: '8px', background: '#fafafa' }}
-                  />
-                  <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4 }}>
-                    Email đăng nhập được lấy từ thông tin cơ bản của nhân sự.
-                  </div>
                 </Form.Item>
               </Col>
             </Row>
@@ -1158,13 +1142,19 @@ export default function StaffFormModal({ visible, staff, onClose, onRefresh }) {
         }
       }}
     >
-      <Tabs 
-        activeKey={activeTab} 
-        onChange={setActiveTab} 
-        items={tabItems} 
-        size="large"
-        style={{ marginBottom: 12 }}
-      />
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={handleFormValuesChange}
+      >
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab} 
+          items={tabItems} 
+          size="large"
+          style={{ marginBottom: 12 }}
+        />
+      </Form>
     </Modal>
   );
 }
